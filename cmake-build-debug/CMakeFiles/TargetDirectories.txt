@@ -1,3 +1,0 @@
-/home/santiago/Desktop/TP Protos/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/home/santiago/Desktop/TP Protos/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/santiago/Desktop/TP Protos/cmake-build-debug/CMakeFiles/TP_Protos.dir

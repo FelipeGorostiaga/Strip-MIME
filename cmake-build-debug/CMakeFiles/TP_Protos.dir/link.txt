@@ -1,1 +1,0 @@
-/usr/bin/gcc -g   CMakeFiles/TP_Protos.dir/main.c.o  -o TP_Protos 
