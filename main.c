@@ -10,7 +10,7 @@ char * concatArgs(int argc, char * argv[]);
 void createSlave(slaveFunc sFunc, char * command);
 void executeCommand(int * outputFds, char * command);
 void inputParity(int * outputFds, char * command);
-char * parity(char * str);
+int parity(const char * str);
 
 int main(int argc, char * argv []) {
 
@@ -30,7 +30,7 @@ int main(int argc, char * argv []) {
 
     scanf("%s", commandOutput); /*after child writes in parent's stdin*/
 
-    fprintf(stderr,"%s!!!\n",parity(commandOutput));
+    fprintf(stderr,"Output parity: %d\n",parity(commandOutput));
     printf("%s\n", commandOutput);
 }
 
@@ -88,17 +88,17 @@ void inputParity(int * outputFds, char * command) {
 
     scanf("%s",stdInput);
     printf("%s", stdInput);
-    fprintf(stderr,"%s!\n",parity(stdInput));
+    fprintf(stderr,"Input parity: %d\n",parity(stdInput));
 }
 
-char * parity(char * str) {
+int parity(const char * str) {
     int i, j, sum = 0;
     for(i = 0; str[i] != 0; i++) {
         for(j = 0; j < 8; j++) {
             sum += str[i] & (1 << j);
         }
     }
-    
+    return sum;
 }
 
 void executeCommand(int * outputFds, char * command) {
