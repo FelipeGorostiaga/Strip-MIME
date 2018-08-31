@@ -7,4 +7,4 @@ int mediaRangeIsValid(char * mediaRange);
 void matchMediaTypes(char ** mediaRanges);
 void freeResources(char ** strings);
 char * readTypeFromStdin();
-int mediaTypeCheck(char * mediaType);
+int mediaTypeCheck(char * mediaType, char ** mediaRanges);
