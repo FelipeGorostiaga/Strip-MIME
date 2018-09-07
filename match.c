@@ -169,7 +169,7 @@ char * readTypeFromStdin() {
     if(c == EOF) {
         return NULL;
     }
-    
+
     return mediaType;
 }
 
