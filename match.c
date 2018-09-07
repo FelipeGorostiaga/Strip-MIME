@@ -52,11 +52,11 @@ char ** parseMediaRanges(const char * argument) {
     }
     if(!mediaRangeIsValid(mediaRanges[k])) {
         printf("Invalid media range\n");
-        freeResources(mediaRanges);
         return NULL;
     }
     mediaRanges[k+1] = 0;
     printf("Media types successfully recognized\n");
+    return mediaRanges;
 }
 
 int mediaRangeIsValid(char * mediaRange) {
@@ -67,7 +67,7 @@ int mediaRangeIsValid(char * mediaRange) {
     mrLength = strlen(mediaRange);
     type = malloc((mrLength+1)*sizeof(char));
     subtype = malloc((mrLength+1)*sizeof(char));
-    sscanf(mediaRange,"%s/%s",type,subtype);
+    sscanf(mediaRange,"%[^ /]/%s",type,subtype);
     if(strcmp(type,"application") == 0 || strcmp(type,"audio") == 0
        || strcmp(type,"example") == 0 || strcmp(type,"font") == 0
        || strcmp(type,"image") == 0 || strcmp(type,"message") == 0
@@ -77,6 +77,8 @@ int mediaRangeIsValid(char * mediaRange) {
             return ADMITTED;
         }
     }
+    printf("TYPE: %s\n",type);
+    printf("SUBTYPE: %s\n",subtype);
     free(type);
     free(subtype);
     printf("Invalid media type range for media range: %s\n", mediaRange);
@@ -121,16 +123,17 @@ int mediaTypeCheck(char * mediaType, char ** mediaRanges) {
     mrLength = strlen(mediaType);
     type = malloc((mrLength+1)*sizeof(char));
     subtype = malloc((mrLength+1)*sizeof(char));
-    sscanf(mediaType,"%s/%s",type,subtype);
+    sscanf(mediaType,"%[^ /]/%s",type,subtype);
     rangeType = malloc((mrLength+1)*sizeof(char));
     rangeSubtype = malloc((mrLength+1)*sizeof(char));
     while(mediaRanges[i] != NULL && !admitted) {
-        sscanf(mediaRanges[i],"%s/%s",rangeType, rangeSubtype);
+        sscanf(mediaRanges[i],"%[^ /]/%s",rangeType, rangeSubtype);
         if(strcmp(type,rangeType) == 0 || strcmp(rangeType,"*") == 0) {
             if(strcmp(subtype,rangeSubtype) == 0 || strcmp(rangeSubtype,"*") == 0) {
                 admitted = ADMITTED;
             }
         }
+
         i++;
     }
     free(type);
@@ -158,7 +161,7 @@ char * readTypeFromStdin() {
     i = 0;
 
     mediaType = malloc(BLOCK* sizeof(char));
-    while(((c = getchar()) != EOF) && ((c = getchar()) != '\n')) {
+    while(((c = getchar()) != EOF) && (c != '\n')) {
         mediaType[i++] = (char)c;
         mediaType[i] = 0;
     }
@@ -166,7 +169,7 @@ char * readTypeFromStdin() {
     if(c == EOF) {
         return NULL;
     }
-
+    
     return mediaType;
 }
 
