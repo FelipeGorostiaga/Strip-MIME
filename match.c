@@ -172,6 +172,3 @@ char * readTypeFromStdin() {
 
     return mediaType;
 }
-
-
-
