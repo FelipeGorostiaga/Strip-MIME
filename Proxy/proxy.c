@@ -3,14 +3,18 @@
 //
 
 #include "proxy.h"
+#include "shellArgsParser.h"
 
+static Configuration config;
 static int popSocketFd, configSocketFd;
 static struct sockaddr_in popSocketAddress, configSocketAddress;
-int clientSockets [MAX_CLIENTS]     = {0};
-int clientTypeArray [MAX_CLIENTS]   = {0};
-fd_set readfds;
+static int clientSockets [MAX_CLIENTS]     = {0};
+static int clientTypeArray [MAX_CLIENTS]   = {0};
+static fd_set readfds;
 
-int main(void) {
+int main(int argc, char * argv []) {
+    config = newConfiguration();
+    parseArgs(config, argc, argv);
     popSocketFd = createPassiveSocket(&popSocketAddress,TCP_SOCKET_PORT, 0);
     configSocketFd = createPassiveSocket(&configSocketAddress,SCTP_SOCKET_PORT,IPPROTO_SCTP);
     selectLoop();
