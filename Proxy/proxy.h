@@ -8,9 +8,7 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
-#include "constants.h"
 #include "proxyParser.h"
-#include "configuration.h"
 #define MAX_CLIENTS 30
 #define MAX_PENDING 3
 #define MUA 1

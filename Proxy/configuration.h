@@ -2,6 +2,14 @@
 // Created by sswinnen on 13/10/18.
 //
 #include <stdlib.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <dirent.h>
+#include <asm/errno.h>
+#include <errno.h>
+#include <regex.h>
+#define TRUE 1
+#define FALSE 0
 
 typedef struct configuration {
     /* -e */
@@ -38,6 +46,8 @@ Configuration newConfiguration();
 /* Frees configuration resources */
 void deleteConfiguration(Configuration config);
 
+/* Checks if the string given is a valid port number */
+int portIsValid(const char * port);
 
 /* Getters */
 char * getErrorFile(Configuration conf);
@@ -52,6 +62,9 @@ char * getOriginPort(Configuration conf);
 char * getCommand(Configuration conf);
 char * getVersion(Configuration conf);
 char * getOriginServer(Configuration conf);
+int getLocalPortAsInt(Configuration conf);
+int getOriginPortAsInt(Configuration conf);
+int getManagementPortAsInt(Configuration conf);
 
 /*Setters*/
 void setErrorFile(Configuration conf, char * errorFile);

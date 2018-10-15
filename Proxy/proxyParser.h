@@ -7,7 +7,6 @@
 #include <stdint.h>
 #include <string.h>
 #include "constants.h"
-
 enum state {NEXT_OPTION, LAST_OPTION};
 
 typedef struct parsedConfiguration {

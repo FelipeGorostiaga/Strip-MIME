@@ -15,8 +15,8 @@ static fd_set readfds;
 int main(int argc, char * argv []) {
     config = newConfiguration();
     parseArgs(config, argc, argv);
-    popSocketFd = createPassiveSocket(&popSocketAddress,TCP_SOCKET_PORT, 0);
-    configSocketFd = createPassiveSocket(&configSocketAddress,SCTP_SOCKET_PORT,IPPROTO_SCTP);
+    popSocketFd = createPassiveSocket(&popSocketAddress,(uint16_t )getManagementPortAsInt(config), 0);
+    configSocketFd = createPassiveSocket(&configSocketAddress,(uint16_t)getLocalPort(config),IPPROTO_SCTP);
     selectLoop();
     return 0;
 }
