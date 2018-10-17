@@ -9,13 +9,18 @@
 #include <string.h>
 #include <unistd.h>
 #include "proxyParser.h"
+#include "shellArgsParser.h"
+#include "pop3parser.h"
 #define MAX_CLIENTS 30
 #define MAX_PENDING 3
-#define MUA 1
+#define CLIENT 1
 #define ADMIN 2
 
 /* Creates passive socket */
-int createPassiveSocket(struct sockaddr_in * address, uint16_t port, int transportProtocol);
+int createPassiveSocket(struct sockaddr_in * address,in_addr_t direction, uint16_t port, int transportProtocol);
+
+/*Creates socket to origin server*/
+int socketToOriginServer(in_addr_t address);
 
 /* Iterates indefinitely performing calls to select */
 void selectLoop();
@@ -25,3 +30,6 @@ void checkForNewClients(int socket, int clientType);
 
 /* Iterates over clients and reads if necessary */
 void readFromClients();
+
+/* Calls the parser if there is something to read from origin server */
+void readFromOriginServer();
