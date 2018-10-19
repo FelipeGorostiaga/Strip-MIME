@@ -137,14 +137,8 @@ void readFromClients() {
                 }
             }
             else if(clientTypeArray[i] == CLIENT){
-                readPop3FromClient(descriptor,originServerFd);
+                attendClient(descriptor,originServerFd);
             }
         }
-    }
-}
-
-void readFromOriginServer() {
-    if(FD_ISSET(originServerFd,&readfds)) {
-        readPop3FromOrigin(originServerFd);
     }
 }
