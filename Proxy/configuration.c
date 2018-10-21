@@ -53,15 +53,17 @@ char * getVersion(Configuration conf) { return conf->version; }
 in_addr_t getOriginServer(Configuration conf) { return conf->originServer; }
 
 
-void setErrorFile(Configuration conf, char * errorFile) {
+int setErrorFile(Configuration conf, char * errorFile) {
     DIR* dir = opendir(errorFile);
     if (dir) {
         closedir(dir);
         conf->errorFile = errorFile;
+        return TRUE;
     }
     else if (ENOENT == errno) {
         fprintf(stderr,"File does not exist. Setting remains at default value\n");
     }
+    return FALSE;
 }
 void setPop3dir(Configuration conf, char * pop3dir) {
     in_addr_t intDir = 0;
@@ -80,11 +82,13 @@ void setManagDir(Configuration conf, char * managDir) {
         fprintf(stderr,"Invalid IP address for management. Setting remains at default value\n");
     }
 }
-void setReplaceMessage(Configuration conf, char * replaceMessage) {
+int setReplaceMessage(Configuration conf, char * replaceMessage) {
     conf->replaceMessage = replaceMessage;
+    return TRUE;
 }
-void setCensurableMediaTypes(Configuration conf, char * censurableMediaTypes) {
+int setCensurableMediaTypes(Configuration conf, char * censurableMediaTypes) {
     conf->censurableMediaTypes = censurableMediaTypes;
+    return TRUE;
 }
 void setManagementPort(Configuration conf, char * managementPort) {
     if(portIsValid(managementPort)) {
@@ -114,8 +118,9 @@ void setOriginPort(Configuration conf, char * originPort) {
         perror("Invalid origin port. Setting remains at default value\n");
     }
 }
-void setCommand(Configuration conf, char * command) {
+int setCommand(Configuration conf, char * command) {
     conf->command = command;
+    return TRUE;
 }
 void setOriginServer(Configuration conf, char * originServer) {
     struct addrinfo * result;

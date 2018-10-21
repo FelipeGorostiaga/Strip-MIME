@@ -8,7 +8,7 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
-#include "proxyParser.h"
+#include "configParser.h"
 #include "shellArgsParser.h"
 #include "pop3parser.h"
 #define MAX_CLIENTS 30
@@ -31,5 +31,5 @@ void checkForNewClients(int socket, int clientType);
 /* Iterates over clients and reads if necessary */
 void readFromClients();
 
-/* Calls the parser if there is something to read from origin server */
-void readFromOriginServer();
+/*Makes the file descriptor fd non blocking*/
+void makeNonBlocking(int fd);

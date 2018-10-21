@@ -70,13 +70,13 @@ char * getVersion(Configuration conf);
 in_addr_t getOriginServer(Configuration conf);
 
 /*Setters*/
-void setErrorFile(Configuration conf, char * errorFile);
+int setErrorFile(Configuration conf, char * errorFile);
 void setPop3dir(Configuration conf, char * pop3dir);
 void setManagDir(Configuration conf, char * managDir);
-void setReplaceMessage(Configuration conf, char * replaceMessage);
-void setCensurableMediaTypes(Configuration conf, char * censurableMediaTypes);
+int setReplaceMessage(Configuration conf, char * replaceMessage);
+int setCensurableMediaTypes(Configuration conf, char * censurableMediaTypes);
 void setManagementPort(Configuration conf, char * managementPort);
 void setLocalPort(Configuration conf, char * localPort);
 void setOriginPort(Configuration conf, char * originPort);
-void setCommand(Configuration conf, char * command);
+int setCommand(Configuration conf, char * command);
 void setOriginServer(Configuration conf, char * originServer);

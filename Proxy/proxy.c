@@ -2,6 +2,7 @@
 // Created by sswinnen on 07/09/18.
 //
 
+#include <fcntl.h>
 #include "proxy.h"
 
 static Configuration config;
@@ -95,7 +96,6 @@ void selectLoop() {
         }
         checkForNewClients(popSocketFd,CLIENT);
         checkForNewClients(configSocketFd,ADMIN);
-        readFromOriginServer();
         readFromClients();
     }
 }
@@ -121,6 +121,7 @@ void checkForNewClients(int socket, int clientType) {
                 break;
             }
         }
+        makeNonBlocking(newSocket);
     }
 }
 
@@ -131,7 +132,7 @@ void readFromClients() {
         descriptor = clientSockets[i];
         if (FD_ISSET( descriptor , &readfds)) {
             if(clientTypeArray[i] == ADMIN) {
-                retVal = parseConfig(descriptor);
+                retVal = parseConfig(descriptor, config);
                 if(retVal == CLOSED_SOCKET) {
                     clientTypeArray[i] = clientSockets[i] = 0;
                 }
@@ -140,5 +141,13 @@ void readFromClients() {
                 attendClient(descriptor,originServerFd);
             }
         }
+    }
+}
+
+void makeNonBlocking(int fd) {
+    int status = fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+
+    if (status == -1){
+        fprintf(stderr,"Error in fcntl");
     }
 }
