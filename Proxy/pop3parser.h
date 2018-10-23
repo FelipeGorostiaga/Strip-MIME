@@ -4,13 +4,14 @@
 
 #include <unistd.h>
 #include <stdio.h>
+
 #define TRUE 1
 #define FALSE 0
-#define BUFFER_SIZE 256
+#define BUFF_SIZE 256
 #define BUFFER_END 15
 
 
-void attendClient(int clientSockFd, int originServerSock);
+void attendClient(int clientSockFd, int originServerSock, char * envVariables [5]);
 
 /*Client attention when origin server supports pipelining*/
 void pipeliningMode();
@@ -19,7 +20,7 @@ void pipeliningMode();
 void noPipeliningMode();
 
 /*Separates indiviudual commands and sends them to server. Returns the index of start of the last unfinished command*/
-int parseChunk(char * buffer, ssize_t bytesRead);
+void parseChunk(char * buffer, ssize_t bytesRead);
 
 /*When \r\n is found, the end of the command is written and no more con
  content is received from client until the end of the server response arrives */

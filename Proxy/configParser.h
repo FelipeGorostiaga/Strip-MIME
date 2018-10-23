@@ -9,6 +9,8 @@
 #include <stdio.h>
 #include "constants.h"
 #include "configuration.h"
+#define END 0
+#define KEEP_RUNNING 1
 
 /* Reads socket content and returns a structure with the parsed configuration. Returns success value or a closed socket value*/
 int parseConfig(int socket, Configuration config);
@@ -18,4 +20,7 @@ int readSocket(int socket, void * buffer, size_t size);
 
 /* Edits configuration of pop3 filter */
 void editConfiguration(Configuration config, char opCode, char * buffer, int socket);
+
+/* Parses initial arguments*/
+int parseArguments(Configuration config,int argc, char * argv []);
 

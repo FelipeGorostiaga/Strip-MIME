@@ -6,6 +6,7 @@
 #include <inttypes.h>
 #include "configuration.h"
 
+char metric[20];
 
 Configuration newConfiguration() {
     Configuration newConf = malloc(sizeof(configuration));
@@ -19,6 +20,11 @@ Configuration newConfiguration() {
     newConf->originPort             = (uint16_t)110;
     newConf->command                = "";
     newConf->version                = "0.0.0";
+    newConf->concurrentConnections  = 0;
+    newConf->bytesTransferred       = 0;
+    newConf->totalAccesses          = 0;
+    newConf->originServerString     = "";
+    newConf->currentUser            = "";
     setManagDir(newConf,"127.0.0.1");
     return newConf;
 }
@@ -51,6 +57,8 @@ uint16_t getOriginPort(Configuration conf) { return conf->originPort; }
 char * getCommand(Configuration conf) { return conf->command; }
 char * getVersion(Configuration conf) { return conf->version; }
 in_addr_t getOriginServer(Configuration conf) { return conf->originServer; }
+char * getOriginServerString(Configuration conf) { return conf->originServerString; }
+char * getCurrentUser(Configuration conf) { return conf->currentUser; }
 
 
 int setErrorFile(Configuration conf, char * errorFile) {
@@ -127,6 +135,7 @@ void setOriginServer(Configuration conf, char * originServer) {
     int error;
     in_addr_t originServerAddress = 0;
 
+    conf->originServerString = originServer;
     error = getaddrinfo(originServer, NULL, NULL, &result);
     if (error != 0) {
         if (error == EAI_SYSTEM) {
@@ -142,6 +151,10 @@ void setOriginServer(Configuration conf, char * originServer) {
     }
 }
 
+void setCurrentUser(Configuration conf, char * currentUser) {
+    conf->currentUser = currentUser;
+}
+
 uint16_t strToUint16(const char * str) {
     uint16_t res;
     char * end;
@@ -152,4 +165,31 @@ uint16_t strToUint16(const char * str) {
     }
     res = (uint16_t) val;
     return res;
+}
+
+char * getTotalAccesses(Configuration conf) {
+    sprintf(metric, "%ld", conf->totalAccesses);
+    return metric;
+}
+
+char * getBytesTransferred(Configuration conf) {
+    sprintf(metric, "%ld", conf->bytesTransferred);
+    return metric;
+}
+
+char * getConcurrentConnections(Configuration conf) {
+    sprintf(metric, "%ld", conf->concurrentConnections);
+    return metric;
+}
+
+void newAccess(Configuration conf) {
+    conf->totalAccesses += 1;
+}
+
+void newConcurrentConnection(Configuration conf) {
+    conf->concurrentConnections += 1;
+}
+
+void addBytesTransferred(Configuration conf, long bytes) {
+    conf->bytesTransferred += bytes;
 }

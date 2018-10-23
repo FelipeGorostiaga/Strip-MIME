@@ -8,8 +8,8 @@
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include "configParser.h"
-#include "shellArgsParser.h"
 #include "pop3parser.h"
 #define MAX_CLIENTS 30
 #define MAX_PENDING 3

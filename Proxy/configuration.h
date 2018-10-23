@@ -38,7 +38,12 @@ typedef struct configuration {
     char * command;
     /* -v */
     char * version;
-
+    /* -z */
+    long concurrentConnections;
+    long bytesTransferred;
+    long totalAccesses;
+    char * currentUser;
+    char * originServerString;
     in_addr_t originServer;
 } configuration;
 
@@ -52,6 +57,13 @@ void deleteConfiguration(Configuration config);
 
 /* Checks if the string given is a valid port number */
 int portIsValid(const char * port);
+
+void newAccess(Configuration conf);
+
+void newConcurrentConnection(Configuration conf);
+
+void addBytesTransferred(Configuration conf, long bytes);
+
 
 uint16_t strToUint16(const char * str);
 
@@ -68,6 +80,11 @@ uint16_t getOriginPort(Configuration conf);
 char * getCommand(Configuration conf);
 char * getVersion(Configuration conf);
 in_addr_t getOriginServer(Configuration conf);
+char * getOriginServerString(Configuration conf);
+char * getCurrentUser(Configuration conf);
+char * getTotalAccesses(Configuration conf) ;
+char * getBytesTransferred(Configuration conf);
+char * getConcurrentConnections(Configuration conf);
 
 /*Setters*/
 int setErrorFile(Configuration conf, char * errorFile);
@@ -80,3 +97,4 @@ void setLocalPort(Configuration conf, char * localPort);
 void setOriginPort(Configuration conf, char * originPort);
 int setCommand(Configuration conf, char * command);
 void setOriginServer(Configuration conf, char * originServer);
+void setCurrentUser(Configuration conf, char * currentUser);

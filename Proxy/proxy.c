@@ -2,19 +2,18 @@
 // Created by sswinnen on 07/09/18.
 //
 
-#include <fcntl.h>
 #include "proxy.h"
 
-static Configuration config;
-static int popSocketFd, configSocketFd, originServerFd;
-static struct sockaddr_in popSocketAddress, configSocketAddress;
-static int clientSockets [MAX_CLIENTS]     = {0};
-static int clientTypeArray [MAX_CLIENTS]   = {0};
-static fd_set readfds;
+Configuration config;
+int popSocketFd, configSocketFd, originServerFd;
+struct sockaddr_in popSocketAddress, configSocketAddress;
+int clientSockets [MAX_CLIENTS];
+int clientTypeArray [MAX_CLIENTS];
+fd_set readfds;
 
 int main(int argc, char * argv []) {
     config = newConfiguration();
-    if(parseArgs(config, argc, argv) == END) {
+    if(parseArguments(config, argc, argv) == END) {
         return 0;
     }
     popSocketFd = createPassiveSocket(&popSocketAddress,getPop3dir(config),getLocalPort(config), IPPROTO_TCP);
@@ -127,6 +126,8 @@ void checkForNewClients(int socket, int clientType) {
 
 void readFromClients() {
     int i, descriptor, retVal;
+    char env[BUFFER_SIZE] = {0};
+    char * envVariables [5];
 
     for (i = 0; i < MAX_CLIENTS; i++) {
         descriptor = clientSockets[i];
@@ -138,7 +139,22 @@ void readFromClients() {
                 }
             }
             else if(clientTypeArray[i] == CLIENT){
-                attendClient(descriptor,originServerFd);
+                strcpy(env,"FILTER_MEDIAS=");
+                strcpy(env+strlen("FILTER_MEDIAS="),getCensurableMediaTypes(config));
+                envVariables[0] = env;
+                strcpy(env,"FILTER_MSG=");
+                strcpy(env+strlen("FILTER_MSG="),getReplaceMessage(config));
+                envVariables[1] = env;
+                strcpy(env,"POP3FILTER_VERSION=");
+                strcpy(env+strlen("POP3FILTER_VERSION="),getVersion(config));
+                envVariables[2] = env;
+                strcpy(env,"POP3_USERNAME=");
+                strcpy(env+strlen("POP3_USERNAME="),getCurrentUser(config));
+                envVariables[3] = env;
+                strcpy(env,"POP3_SERVER=");
+                strcpy(env+strlen("POP3_SERVER="),getOriginServerString(config));
+                envVariables[4] = env;
+                attendClient(descriptor,originServerFd, envVariables);
             }
         }
     }

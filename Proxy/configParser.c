@@ -3,6 +3,7 @@
 //
 
 #include "configParser.h"
+extern int parseArgs(Configuration conf, int argc, char * argv []);
 
 int parseConfig(int socket, Configuration config) {
     uint8_t * buffer = malloc(MAX_CONTENT_LEN* sizeof(uint8_t));
@@ -71,4 +72,8 @@ void editConfiguration(Configuration config, char opCode, char * buffer, int soc
         retBuffer[4] = 'R';
         write(socket,retBuffer,5);
     }
+}
+
+int parseArguments(Configuration config,int argc, char * argv []) {
+    return parseArgs(config,argc,argv);
 }

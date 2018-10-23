@@ -9,9 +9,10 @@
 
 static int clientFd, originServer, pipeliningSupported;
 static int pipeFds[2];
+static char ** envVars;
 
-void attendClient(int clientSockFd, int originServerSock) {
-
+void attendClient(int clientSockFd, int originServerSock, char * envVariables [5]) {
+    envVars = envVariables;
     startFilter();
     clientFd = clientSockFd;
     originServer = originServerSock;
@@ -37,21 +38,21 @@ void noPipeliningMode() {
     ssize_t bytesRead;
     int clientReadIsFinished = FALSE;
 
-    char buffer [BUFFER_SIZE] = {0};
+    char buffer [BUFF_SIZE] = {0};
 
     while(!clientReadIsFinished) {
-        if((bytesRead = read(clientFd,buffer, BUFFER_SIZE)) == -1) {
+        if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
             fprintf(stderr,"Read error");
             exit(EXIT_FAILURE);
         }
-        if(bytesRead < BUFFER_SIZE) {
+        if(bytesRead < BUFF_SIZE) {
             clientReadIsFinished = TRUE;
         }
         parseChunk(buffer, bytesRead);
     }
 }
 
-int parseChunk(char * buffer, ssize_t chunkSize) {
+void parseChunk(char * buffer, ssize_t chunkSize) {
     size_t cmdStart = 0, cmdEnd = 0;
     int endFound = TRUE;
 
@@ -66,6 +67,7 @@ int parseChunk(char * buffer, ssize_t chunkSize) {
             cmdStart = cmdEnd + 1;
         }
     }
+
 }
 
 void writeCommandEnd(char * buffer, size_t len) {
@@ -94,14 +96,14 @@ void writeAndReadFilter() {
 
 int readFromClient() {
     ssize_t bytesRead;
-    char buffer [BUFFER_SIZE] = {0};
+    char buffer [BUFF_SIZE] = {0};
 
-    if((bytesRead = read(clientFd,buffer, BUFFER_SIZE)) == -1) {
+    if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
         fprintf(stderr,"Read error");
         exit(EXIT_FAILURE);
     }
     write(originServer,buffer,(size_t )bytesRead);
-    if(bytesRead < BUFFER_SIZE) {
+    if(bytesRead < BUFF_SIZE) {
         return TRUE;
     }
     return FALSE;
@@ -110,14 +112,14 @@ int readFromClient() {
 
 int readFromOrigin() {
     ssize_t bytesRead;
-    char buffer [BUFFER_SIZE] = {0};
+    char buffer [BUFF_SIZE] = {0};
 
-    if ((bytesRead = read(clientFd, buffer, BUFFER_SIZE)) == -1) {
+    if ((bytesRead = read(clientFd, buffer, BUFF_SIZE)) == -1) {
         fprintf(stderr, "Read error");
         exit(EXIT_FAILURE);
     }
     write(pipeFds[1],buffer,(size_t)bytesRead);
-    if(bytesRead < BUFFER_SIZE) {
+    if(bytesRead < BUFF_SIZE) {
         return TRUE;
     }
     return FALSE;
@@ -125,9 +127,9 @@ int readFromOrigin() {
 
 int readFromFilter() {
     ssize_t bytesRead;
-    char buffer [BUFFER_SIZE] = {0};
+    char buffer [BUFF_SIZE] = {0};
 
-    if ((bytesRead = read(pipeFds[0], buffer, BUFFER_SIZE)) == -1) {
+    if ((bytesRead = read(pipeFds[0], buffer, BUFF_SIZE)) == -1) {
         fprintf(stderr, "Read error");
         exit(EXIT_FAILURE);
     }
@@ -141,8 +143,14 @@ int readFromFilter() {
 
 
 void startFilter() {
+    int i;
+
     if(fork() == 0) {
-        //TODO Exec del filtro
+        for(i = 0; i < 5; i++) {
+            putenv(envVars[i]);
+        }
+
+
     }
     else {
         if(pipe(pipeFds) == -1) {
@@ -153,19 +161,19 @@ void startFilter() {
 }
 
 int pipeliningSupport(int originServer) {
-    char buffer [BUFFER_SIZE];
-    char extendedBuff[BUFFER_SIZE+BUFFER_END];
+    char buffer [BUFF_SIZE];
+    char extendedBuff[BUFF_SIZE+BUFFER_END];
     char previousEnd[BUFFER_END];
     int found = FALSE, firstRead = TRUE;
     ssize_t bytesRead;
 
     write(originServer,"CAPA\r\n",6);
     while(!found) {
-        if ((bytesRead = read(originServer, buffer, BUFFER_SIZE)) == -1) {
+        if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
             fprintf(stderr, "Error opening pipes to filter");
             exit(EXIT_FAILURE);
         }
-        if (bytesRead < BUFFER_SIZE) {
+        if (bytesRead < BUFF_SIZE) {
             if(firstRead) {
                  return findPipelining(buffer, bytesRead);
             }
@@ -176,15 +184,15 @@ int pipeliningSupport(int originServer) {
             }
         }
         if(firstRead) {
-            found = findPipelining(buffer, BUFFER_SIZE);
+            found = findPipelining(buffer, BUFF_SIZE);
             firstRead = FALSE;
         }
         else {
             memcpy(extendedBuff,previousEnd,BUFFER_END);
-            memcpy(extendedBuff+BUFFER_END,buffer,BUFFER_SIZE);
-            found = findPipelining(extendedBuff, BUFFER_END + BUFFER_SIZE);
+            memcpy(extendedBuff+BUFFER_END,buffer,BUFF_SIZE);
+            found = findPipelining(extendedBuff, BUFFER_END + BUFF_SIZE);
         }
-        memcpy(previousEnd,buffer + BUFFER_SIZE - BUFFER_END, BUFFER_END);
+        memcpy(previousEnd,buffer + BUFF_SIZE - BUFFER_END, BUFFER_END);
     }
     return TRUE;
 
