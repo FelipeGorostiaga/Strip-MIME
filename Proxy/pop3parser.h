@@ -9,9 +9,16 @@
 #define FALSE 0
 #define BUFF_SIZE 256
 #define BUFFER_END 15
+#define NOT_FOUND 0
+#define CONTINUE 0
+
+typedef struct attendReturningFields {
+    int closeConnectionFlag;
+    long bytesTransferred;
+} arf;
 
 
-void attendClient(int clientSockFd, int originServerSock, char * envVariables [5]);
+struct attendReturningFields attendClient(int clientSockFd, int originServerSock, char * envVariables [5]);
 
 /*Client attention when origin server supports pipelining*/
 void pipeliningMode();
@@ -49,3 +56,8 @@ int findPipelining(char * str, ssize_t size);
 
 /*Looks for \r\n and returns the position where it was found. If no \r\n was found returns 0*/
 size_t commandEnd(const char * buffer, ssize_t size);
+
+/*Writes current command in logs*/
+void logAccess(char * buffer, size_t cmdStart);
+
+int commandsAreEqual(const char * command1, const char * command2);

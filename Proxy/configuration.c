@@ -190,6 +190,10 @@ void newConcurrentConnection(Configuration conf) {
     conf->concurrentConnections += 1;
 }
 
+void closedConcurrentConnection(Configuration conf) {
+    conf->concurrentConnections -= 1;
+}
+
 void addBytesTransferred(Configuration conf, long bytes) {
     conf->bytesTransferred += bytes;
 }

@@ -3,7 +3,10 @@
 //
 
 #include "configParser.h"
+
 extern int parseArgs(Configuration conf, int argc, char * argv []);
+
+char metrics [BUFFER_SIZE];
 
 int parseConfig(int socket, Configuration config) {
     uint8_t * buffer = malloc(MAX_CONTENT_LEN* sizeof(uint8_t));
@@ -24,7 +27,7 @@ int parseConfig(int socket, Configuration config) {
         bytesRead = readSocket(socket,buffer,(size_t)contentSize);
         if(bytesRead == 0) { break; }
         buffer[contentSize] = 0;
-        editConfiguration(config,opCode,(char *)buffer, socket);
+        editConfiguration(config,opCode,(char *)buffer, socket, contentSize);
     }
     while(TRUE);
     return SUCCESS;
@@ -40,9 +43,9 @@ int readSocket(int socket, void * buffer, size_t size) {
     return (int)bytesRead;
 }
 
-void editConfiguration(Configuration config, char opCode, char * buffer, int socket) {
+void editConfiguration(Configuration config, char opCode, char * buffer, int socket, ssize_t contentSize) {
     int ret = FALSE;
-    uint8_t retBuffer [10] = {0};
+    uint8_t metrics [10] = {0};
 
     switch(opCode) {
         case 'e': ret = setErrorFile(config, buffer);
@@ -53,27 +56,65 @@ void editConfiguration(Configuration config, char opCode, char * buffer, int soc
             break;
         case 't' : ret = setCommand(config, buffer);
             break;
-        case 'z' : //getMetrics(config, buffer);
+        case 'z' : getMetrics(config, buffer, contentSize); write(socket,metrics,strlen((const char*)metrics));
             break;
         default:
             break;
     }
 
-    retBuffer[0] = (uint8_t)opCode;
+    metrics[0] = (uint8_t)opCode;
     if(ret == TRUE) {
-        retBuffer[1] = (uint8_t)2;
-        retBuffer[2] = 'O';
-        retBuffer[3] = 'K';
-        write(socket,retBuffer,4);
+        metrics[1] = (uint8_t)2;
+        metrics[2] = 'O';
+        metrics[3] = 'K';
+        write(socket,metrics,4);
     } else {
-        retBuffer[1] = (uint8_t)3;
-        retBuffer[2] = 'E';
-        retBuffer[3] = 'R';
-        retBuffer[4] = 'R';
-        write(socket,retBuffer,5);
+        metrics[1] = (uint8_t)3;
+        metrics[2] = 'E';
+        metrics[3] = 'R';
+        metrics[4] = 'R';
+        write(socket,metrics,5);
     }
 }
 
-int parseArguments(Configuration config,int argc, char * argv []) {
+int parseArguments(Configuration config, int argc, char * argv []) {
     return parseArgs(config,argc,argv);
+}
+
+void getMetrics(Configuration  config, const char * buffer, ssize_t contentSize) {
+    int i, auxIndex, metricsIndex;
+    char aux [BUFFER_SIZE] = {0};
+    char * configData;
+
+    auxIndex = 0; metricsIndex = 0;
+    for(i = 0; i < contentSize; i++) {
+        if(buffer[i] == ' ') {
+            aux[auxIndex] = '\0';
+            auxIndex = 0;
+            if(strcmp(aux,"BYTES") == 0) {
+                strcpy(metrics + metricsIndex, "BYTES ");
+                metricsIndex += strlen("BYTES ");
+                configData = getBytesTransferred(config);
+            }
+            else if(strcmp(aux,"CON_CON") == 0) {
+                strcpy(metrics + metricsIndex, "CON_CON ");
+                metricsIndex += strlen("CON_CON ");
+                configData = getConcurrentConnections(config);
+            }
+            else if(strcmp(aux,"TOT_CON") == 0) {
+                strcpy(metrics + metricsIndex, "TOT_CON ");
+                metricsIndex += strlen("TOT_CON ");
+                configData = getTotalAccesses(config);
+            }
+            else {
+                return;
+            }
+            strcpy(metrics + metricsIndex, configData);
+            metricsIndex += strlen(configData+1);
+        }
+        else {
+            aux[auxIndex] = buffer[i];
+        }
+    }
+    metrics[metricsIndex-1] = '\0';
 }

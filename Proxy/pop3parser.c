@@ -4,14 +4,19 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+#include <ctype.h>
 #include "pop3parser.h"
 
 
 static int clientFd, originServer, pipeliningSupported;
 static int pipeFds[2];
 static char ** envVars;
+struct attendReturningFields rf;
 
-void attendClient(int clientSockFd, int originServerSock, char * envVariables [5]) {
+struct attendReturningFields attendClient(int clientSockFd, int originServerSock, char * envVariables [5]) {
+    rf.closeConnectionFlag = FALSE;
+    rf.bytesTransferred = 0;
     envVars = envVariables;
     startFilter();
     clientFd = clientSockFd;
@@ -23,6 +28,7 @@ void attendClient(int clientSockFd, int originServerSock, char * envVariables [5
     else {
         noPipeliningMode();
     }
+    return rf;
 }
 
 void pipeliningMode() {
@@ -45,6 +51,7 @@ void noPipeliningMode() {
             fprintf(stderr,"Read error");
             exit(EXIT_FAILURE);
         }
+        rf.bytesTransferred += bytesRead;
         if(bytesRead < BUFF_SIZE) {
             clientReadIsFinished = TRUE;
         }
@@ -58,13 +65,17 @@ void parseChunk(char * buffer, ssize_t chunkSize) {
 
     while(endFound) {
         cmdEnd = commandEnd(buffer+cmdStart,chunkSize);
-        if(cmdEnd == 0) {
+        if(cmdEnd == NOT_FOUND) {
             endFound = FALSE;
             write(originServer,buffer+cmdStart,chunkSize-cmdStart);
         }
         else {
             writeCommandEnd(buffer + cmdStart, cmdEnd - cmdStart);
             cmdStart = cmdEnd + 1;
+            logAccess(buffer,cmdStart);
+            if(commandsAreEqual(buffer+cmdStart,"quit")) {
+                rf.closeConnectionFlag = TRUE;
+            }
         }
     }
 
@@ -72,7 +83,6 @@ void parseChunk(char * buffer, ssize_t chunkSize) {
 
 void writeCommandEnd(char * buffer, size_t len) {
     int originReadIsFinished = FALSE;
-
     write(originServer,buffer,len);
     while(!originReadIsFinished) {
         originReadIsFinished = readFromOrigin();
@@ -97,10 +107,17 @@ void writeAndReadFilter() {
 int readFromClient() {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
+    size_t i;
 
     if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
         fprintf(stderr,"Read error");
         exit(EXIT_FAILURE);
+    }
+    rf.bytesTransferred += bytesRead;
+    for(i = 1; i + 4 < bytesRead; i++) {
+        if(buffer[i-1] == '\r' && buffer[i] == '\n') {
+            logAccess(buffer,i+1);
+        }
     }
     write(originServer,buffer,(size_t )bytesRead);
     if(bytesRead < BUFF_SIZE) {
@@ -113,11 +130,11 @@ int readFromClient() {
 int readFromOrigin() {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
-
-    if ((bytesRead = read(clientFd, buffer, BUFF_SIZE)) == -1) {
+    if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
         fprintf(stderr, "Read error");
         exit(EXIT_FAILURE);
     }
+    rf.bytesTransferred += bytesRead;
     write(pipeFds[1],buffer,(size_t)bytesRead);
     if(bytesRead < BUFF_SIZE) {
         return TRUE;
@@ -149,8 +166,6 @@ void startFilter() {
         for(i = 0; i < 5; i++) {
             putenv(envVars[i]);
         }
-
-
     }
     else {
         if(pipe(pipeFds) == -1) {
@@ -228,4 +243,30 @@ size_t commandEnd(const char * buffer, ssize_t size) {
         }
     }
     return 0;
+}
+
+void logAccess(char * buffer, size_t cmdStart) {
+    char cmd [5] = {0};
+
+    memcpy(cmd,buffer+cmdStart,4* sizeof(char));
+    fprintf(stdout,"%lu ", (unsigned long)time(NULL));
+    fprintf(stdout,"id: %d ", clientFd);
+    fprintf(stdout,"%s\n",cmd);
+
+}
+
+int commandsAreEqual(const char * command1, const char * command2) {
+    char aux1[5] = {0};
+    char aux2[5] = {0};
+    int i;
+
+    memcpy(aux1,command1,4* sizeof(char));
+    memcpy(aux2,command2,4* sizeof(char));
+
+    for(i = 0; i < 4; i++) {
+        aux1[i] = (char)tolower(aux1[i]);
+        aux2[i] = (char)tolower(aux2[i]);
+    }
+
+    return strncmp(aux1,aux2,4) == 0 ? TRUE : FALSE;
 }
