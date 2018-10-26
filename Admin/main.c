@@ -2,24 +2,27 @@
 
 struct sockaddr_in addr;
 
-//TODO
-// - Send version request and read reply
-// - Send command request and read reply
-// - Send metrics request and read reply
-// - Send password and read reply to authenticate
 
+//TODO
+//Checkear si con readFromProxy() devolviendo la response null-terminated el flujo no deberia cambiar
+//Test socket connections
 
 int main(void) {
     int socket;
     int option = CONTINUE; 
+
+    //testParseMetrics();
+    //testSendMetrics();
+    //test2();
+    //test();
     
     initSettings();
     //socket = connectSocket();
-    authenticate(socket);
+    //authenticate(socket);
     welcome();
 
     while(option ==  CONTINUE) {
-        option =readCommands();
+        option = readCommands(socket);
         printf("Option return value: %d\n",option);
     }
 
@@ -37,12 +40,13 @@ void exitWmsg(char * msg) {
     clearScreen();
     printf("%s\n",msg);
     printf("Exiting...\n");
-    //sleep(2);
+    sleep(2);
     exit(0);
 }
 
 void authenticate(int fd) {
     char * pass;
+    char * response;
     int count = 0;
     int scmp = 0;
     char * passMsg = ">Enter secret password: (\"password\")\n";
@@ -54,21 +58,18 @@ void authenticate(int fd) {
             if(count >= 10) exitWmsg(errorMsg);
             printf("Invalid password, try again...\n");
         } 
-        //TODO - SEND PASSWORD IN SOCKET AND GET ANSWER FROM PROXY, OK OR ERROR.
         pass = getpass(passMsg);
-        scmp = strcmp(pass,"password");
+        if(sendToProxy('x',pass,strlen(pass),fd)) {
+            response = (char *)readFromProxy(fd,'x');
+            scmp = strcmp(response,"OK");
+        }
     }while(scmp != 0);
-
-    fflush(STDIN_FILENO);
+    free(response);
+    fflush(stdin);
     clearScreen();
     printf("Signing in...\n");
     sleep(2);
     clearScreen();
-}
-
-void checkInput(int ret) {
-    if(ret == TOO_LONG) printf("Invalid input, username can't be more than 25 characters long.\n");
-    else if(ret == NO_INPUT) printf("Invalid input, please enter a valid username.\n");
 }
 
 void printHelp() {
@@ -81,7 +82,7 @@ void printHelp() {
     printf("-e <errorfilename> Redirect stderr to errorfilename \n");
     printf("-m <message> change default replace message\n");
     printf("-v Get proxy server version\n");
-    printf("-z BYTES CCON CON CTIME Get specified metrics, no parameters will get all metrics\n");   
+    printf("-z BYTES CON_CON TOT_CON TIME Get specified metrics, no parameters will get all metrics\n");   
 }
 
 void welcome() {
@@ -96,27 +97,32 @@ void printErrorMessage(int errorCode) {
         case 1: printf("Invalid command, missing arguments.\n");break;
         case 2: printf("Invalid command, too many blank spaces.\n");break;
         case 3: printf("Invalid command, parameters can´t exceed 1024 characters long.\n");break;
+        case 4: printf("Error sending data to server.\n");break;
+        case 5: printf("Error, invalid response from server, please try again...\n");break;
+        case 6: printf("Server responded with ERROR\n");break;
+        case 7: printf("Invalid metric parameters, please try again...\n");break;
+        case 8: printf("Error, couldn't read from server.\n");break;
+        case 9: printf("Invalid metric values from server.\n");break;
     }
 }
-void allocMetrics(char **metrics) {
 
-    metrics = malloc(3 * sizeof(char *));
-    for(int i = 0 ; i < 3 ; i++) {
-        metrics[i] = malloc(40 * sizeof(char));
+void successMessage(int cmd) {
+    switch(cmd) {
+        case 'm': printf("Successfully updated replace message\n");break;
+        case 't': printf("Successfully updated command\n");break;
+        case 'e': printf("Successfully updated error file redirect\n");break;
+        case 'f': printf("Successfully updated metrics file redirect\n");break;
     }
 
 }
 
-int readCommands() {
-
+int readCommands(int socket) {
     printf("en read commands\n");
-    char buff[1024];
+    char * buff = (char *)malloc(BUFF_SIZE * sizeof(char));
     int errorNum;
     int spaceCount = 0;
     enum states state = START;
     int c,cmd,rt;
-    char **metrics;
-    allocMetrics(metrics);
 
     while(state != END && (c = getchar()) != EOF &&  c != '\n' ) {
 
@@ -187,7 +193,7 @@ int readCommands() {
                 break;
             case WORD:
                 buff[0] = (char)c;
-                rt = getLine(NULL,buff+1, sizeof(buff));
+                rt = getLine(NULL,buff+1, BUFF_SIZE);
                 if(rt == NO_INPUT ) {
                     state = ERROR;
                     errorNum = 1;
@@ -197,7 +203,7 @@ int readCommands() {
                     errorNum = 3;
                 }
                 else {
-                    handleCommandProxy(buff,cmd,sizeof(buff),metrics);
+                    handleCommandProxy(buff,cmd,socket);
                     state = END;
                 }
 
@@ -232,6 +238,7 @@ int readCommands() {
 
         }
     }
+    free(buff);
 
     if(state == QUIT) {
         printf("Closing program...\n");
@@ -240,7 +247,6 @@ int readCommands() {
         return 0;
     }
     else if (state == END) {
-        printf("\n\n");
         printf("Ended in END state, try again...\n");
     }
     else if(state == ERROR) {
@@ -250,6 +256,313 @@ int readCommands() {
     else if(state == HELP) printHelp();
  
     return 1;
+}
+
+void cleanBuffer() {
+    int c;
+    fflush(stdin);
+    while(c=getchar() != '\n');
+}
+
+void getProxyVersion(int cmd, int socket) {
+    int rt;
+    char * response;
+    char * buffer = malloc(sizeof(char));
+    
+    rt = sendToProxy(cmd,buffer,0,socket);
+    if(!rt) {
+        printErrorMessage(4);
+    }
+    response = readFromProxy(socket,cmd);
+    clearScreen();
+    printf("Proxy Version %s\n",response);
+    free(buffer);
+    free(response);
+    return;
+}
+ 
+void parseMetrics(char * response,int count) {
+    uint8_t size;
+    char c;
+    char * metric;
+    char * metricValue;
+
+    if(response != NULL ) {
+        if(response[0] == 'z') {
+            if((size = (uint8_t)response[1]) > 0) {
+                printf("size %d\n",(int)size);
+
+                if (isErrorMessage(response + (char)1)) {
+                    printErrorMessage(6);
+                    return;
+                }   
+                metric = strtok((char *)(response + (char)1)," ");
+                metricValue = strtok(NULL," ");
+                printMetric(metric,metricValue);
+                count--;
+                
+                while(metric != NULL && metricValue != NULL && count > 0) {
+                    metric = strtok(NULL," ");
+                    metricValue = strtok(NULL," ");
+                    printMetric(metric,metricValue);
+                    count--;
+                }
+            }  
+        }
+    }
+    else {
+        printErrorMessage(5);
+    }
+    return;
+}
+
+int sendMetrics(char * buff, int fd) {
+    int countMetrics = 0;
+    char * createdBuffer = (char *)malloc(200);
+    char *metrics[4] = {"BYTES","CON_CON","TOT_CON","CON_PER_MIN"};
+    int sizeMetrics[4] = {5,7,7,11};
+    int size = 0;
+   
+    for(int i=0 ; i<4 ; i++) {
+        if(strstr(buff,metrics[i]) != NULL) {
+            printf("Metric %s FOUND\n",metrics[i]);
+            
+            if(countMetrics > 0){ 
+                createdBuffer[size] = ' ';
+                size++;
+            }
+            strcpy((char *)(createdBuffer +(char)size),metrics[i]);
+            size += sizeMetrics[i];
+            countMetrics++;
+        }
+    }
+    if(countMetrics > 0) {
+        if(!(sendToProxy('z',createdBuffer,size,fd))) {
+            printErrorMessage(4);
+            return 0;
+        }
+    }
+    else {
+        printErrorMessage(7);
+    }
+    free(createdBuffer);
+    return countMetrics;
+}
+
+void readResponse(char * response, int cmd) {
+
+    uint8_t size;
+    char c;
+    int error = 0;
+    if(response != NULL ) {
+        c = response[0];
+        if(c == cmd) {
+            size = response[1];
+            if(size == 2) {
+                if(isOK(response + 2)) {
+                    successMessage(cmd);
+                }
+            }
+            else {
+                error = TRUE;
+            }
+        }
+        else {
+            error = TRUE;
+        }
+    }
+    else {
+        error = TRUE;
+    }
+    if(error) printErrorMessage(5);
+
+}
+
+int isOK(char *s) {
+    return (*s == 'O' && (*(s+1)) == 'K'); 
+}
+
+
+int handleCommandProxy(char *buff, int cmd, int fd) {
+    int rt;
+    printf("in handleCommandProxy\n");
+    char * response;
+
+    printf("Command value %c\n",cmd);
+    printf("parameter value:%s\n",buff);
+    printf("parameter length:%d\n",(int)strlen(buff));
+
+    if(cmd == 'z') {
+        rt = sendMetrics(buff,fd);
+        if(rt) {
+            response = readFromProxy(fd,cmd);
+            parseMetrics(response,rt);
+        }        
+    }
+    else {
+
+        rt = sendToProxy(cmd,buff,strlen(buff),fd);
+        if(rt) {
+            response = readFromProxy(fd,cmd);
+            readResponse(response,cmd);
+        }
+        else {
+            printErrorMessage(4);
+        }
+    }
+}
+//Retorna el string NULL-TERMINATED
+char * readFromProxy(int fd, int cmd) {
+    char b[1];
+    char *buff = malloc(257 * sizeof(char));
+    uint8_t readSize;
+    if(read(fd,b,1) != 1) {
+        printErrorMessage(8);
+        return NULL;
+    }
+    else {
+        if(b[0] == (char)cmd) {
+            if(read(fd,b,1) != 1) {
+                printErrorMessage(5);
+                return NULL;
+            }
+            readSize = (uint8_t)b[0];
+        }
+        else {
+            printErrorMessage(5);
+            return NULL;
+        }
+    }
+    if(readSize > 255) {
+        printErrorMessage(5);
+        return NULL;
+    }
+    read(fd,buff,readSize);
+    buff[readSize] = '\0';
+    printf("String recieved:%s\n",buff);
+    return buff;
+}
+int sendToProxy(int cmd, char * buffer, size_t size, int fd) {
+
+    char sendSize;
+    char sendBuffer[257];
+    int index = 0;
+    int actSize;
+    do {
+        setToZero(sendBuffer,sizeof(sendBuffer));
+        if(size > 255) sendSize = 255;
+        else sendSize = size;
+        size -= sendSize;
+        sendBuffer[0] = (char)cmd;
+        sendBuffer[1] = (char)sendSize;
+        memcpy(sendBuffer + 2, buffer + index, sendSize);
+        actSize = sendSize + 2;
+        if( write(fd,sendBuffer,actSize) !=  actSize) {
+            return 0;
+        }
+        index += sendSize;
+    }while(size != 0);
+
+    return 1;
+}
+
+void removeSpaces(char * source) {
+  char* i = source;
+  char* j = source;
+  while(*j != 0)
+  {
+    *i = *j++;
+    if(*i != ' ')
+      i++;
+  }
+  *i = 0;
+}
+
+void testSendMetrics() {
+
+    char * rt;
+    char * buff = (char *)malloc(200);
+    char * createdBuffer = (char *)malloc(200);
+    char *metrics[4] = {"BYTES","CON_CON","TOT_CON","CON_PER_MIN"};
+    int sizeMetrics[4] = {5,7,7,11};
+    int countMetrics = 0;
+    int size = 0;
+
+    getLine("Insert test string\n",buff,200);
+    printf("Entered string:%s\n",buff);
+
+    for(int i=0 ; i<4 ; i++) {
+        if(strstr(buff,metrics[i]) != NULL) {
+            printf("Metric %s FOUND\n",metrics[i]);
+            
+            if(countMetrics > 0){ 
+                createdBuffer[size] = ' ';
+                size++;
+            }
+            strcpy((char *)(createdBuffer +(char)size),metrics[i]);
+            size += sizeMetrics[i];
+            countMetrics++;
+        }
+    }
+    //createdBuffer[size] = '\0';
+    printf("Count metrics:%d\nSize:%d\n",countMetrics,size);
+    printf("Created buffer:%s\n",createdBuffer);
+    free(buff);
+    free(createdBuffer);
+
+}
+
+void tokenizeMetrics(char *buff) {
+    char * token;
+    int i = 0;
+    int errorFlag = 0;
+    char params[3][40];
+
+    token = strtok(buff," ");
+    printf("token:%s\n",token);
+    strcpy(params[i],token);
+
+    while((token = strtok(NULL," ")) != NULL) {
+        i++;
+        if(i > 2){
+            errorFlag = 1;
+            break;
+        }
+        printf("token:%s\n",token);
+        strcpy(params[i],token);
+    }
+    printf("%d\n",i);
+    if(errorFlag) {
+        printf("Too many arguments\n");
+    }
+    else { 
+        for(int j = 0 ; j<=i ; j++) {
+            printf("params[%d]=%s\n",j,params[j]);
+        }
+    }
+}
+
+void test() {
+    char * rt;
+    char buff[100];
+    getLine("Insert test string\n",buff,sizeof(buff));
+    printf("Entered string:%s\n",buff);
+    char *str[4] = {" uno "," dos "," tres "," cuatro "};
+    for(int i = 0 ; i<4 ; i++) {
+        if((rt = strstr(buff,str[i])) != NULL) {
+            printf("%s esta! \n",str[i]);
+        }
+    }
+
+}
+
+void test2() {
+    char * rt;
+    char buff[100];
+    getLine("Insert test string\n",buff,sizeof(buff));
+    printf("Entered string:%s\n",buff);
+    removeSpaces(buff);
+    printf("No spaces =%s\n",buff);
 }
 
 int getLine(char *prmpt, char *buff, size_t sz) {
@@ -272,75 +585,7 @@ int getLine(char *prmpt, char *buff, size_t sz) {
     return OK;
 }
 
-void cleanBuffer() {
-    int c;
-    fflush(stdin);
-    while(c=getchar() != '\n');
-}
 
-void getProxyVersion() {
-    clearScreen();
-    printf("Proxy version 1.0.0\n");
-    return;
-}
-
-int handleCommandProxy(char *buff, int cmd, size_t  buffSize , char **metrics) {
-    int rt;
-    char sendbuff[257];
-    printf("in handleCommandProxy\n");
-    if(cmd == 'z') {
-        getMetrics(buff,metrics);
-        
-    }
-    else {
-        fillBuffer(sendbuff,buff,cmd);       
-        printf("Command value %c\n",cmd);
-        printf("parameter value: %s\n",buff);
-        printf("parameter length: %d\n",(int)strlen(buff));
-    }
-
-}
-
-void fillBuffer(char * sendbuff, char * buff, int cmd) {
-    sendbuff[0] = (char)cmd;
-    int len = strlen(buff);
-    sendbuff[1] = (char)len;
-}
-
-void createProtocolPackage(int command, char * buff, size_t buffsize) {
-    return;
-}
-
-void getMetrics(char * buff, char ** metrics) {
-    char * token;
-    int i = 0;
-    int errorFlag = 0;
-    char params[3][40];
-    token = strtok(buff," ");
-    printf("token:%s\n",token);
-    strcpy(params[i],token);
-        while((token = strtok(NULL," ")) != NULL) {
-            i++;
-            if(i > 2){
-                errorFlag = 1;
-                break;
-            }
-            printf("token:%s\n",token);
-            strcpy(params[i],token);
-        }
-        printf("%d\n",i);
-        if(errorFlag) {
-            printf("Too many arguments\n");
-        }
-        else { 
-            for(int j = 0 ; j<=i ; j++) {
-                printf("params[%d]=%s\n",j,params[j]);
-            }
-            
-        }
-        
-    return;
-}
 
 void initSettings() {
     memset((void*)&addr,0, sizeof(addr));
@@ -382,4 +627,48 @@ int connectSocket() {
         exit(1);
     }
     return fd;
+}
+
+void setToZero(char *buff, size_t size) {
+    memset(buff,0,size);
+}
+
+
+void testParseMetrics() {
+    int count = 2;
+    char * buff = (char *)malloc(200);
+    getLine("Insert test string\n",buff,200);
+    printf("Entered string:%s\n",buff);
+    parseMetrics(buff,count);
+}
+
+void printMetric(char * metric, char * metricValue) {
+    int value;
+    if(metric == NULL || metricValue == NULL) {
+        printErrorMessage(9);
+    }
+    else {
+        value = atoi(metricValue);
+        printf("Metric:%s with value:%d\n",metric,value);
+    }
+    return;
+}
+
+int countDigits(char *str) {
+    int count = 0;
+    while(isdigit(str[count])) {
+        count++;
+    }
+    return count + 1;
+}
+
+int isErrorMessage(char * string) {
+    char * s = malloc(6);
+    int res;
+    memcpy(s,string,5);
+    s[5] = '\0';
+    res = strcmp(s,"ERROR");
+    free(s);
+    if(s == 0) return 1;
+    return 0;
 }
