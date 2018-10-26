@@ -12,6 +12,7 @@ int clientTypeArray [MAX_CLIENTS];
 fd_set readfds;
 
 int main(int argc, char * argv []) {
+    fcntl(STDOUT_FILENO, F_SETFL, fcntl(STDOUT_FILENO, F_GETFL, 0) | O_NONBLOCK);
     config = newConfiguration();
     if(parseArguments(config, argc, argv) == END) {
         return 0;
@@ -128,6 +129,7 @@ void readFromClients() {
     int i, descriptor, retVal;
     char env[BUFFER_SIZE] = {0};
     char * envVariables [5];
+    struct attendReturningFields rf;
 
     for (i = 0; i < MAX_CLIENTS; i++) {
         descriptor = clientSockets[i];
@@ -139,6 +141,8 @@ void readFromClients() {
                 }
             }
             else if(clientTypeArray[i] == CLIENT){
+                newAccess(config);
+                newConcurrentConnection(config);
                 strcpy(env,"FILTER_MEDIAS=");
                 strcpy(env+strlen("FILTER_MEDIAS="),getCensurableMediaTypes(config));
                 envVariables[0] = env;
@@ -154,7 +158,12 @@ void readFromClients() {
                 strcpy(env,"POP3_SERVER=");
                 strcpy(env+strlen("POP3_SERVER="),getOriginServerString(config));
                 envVariables[4] = env;
-                attendClient(descriptor,originServerFd, envVariables);
+                rf = attendClient(descriptor,originServerFd, envVariables);
+                if(rf.closeConnectionFlag == TRUE) {
+                    closedConcurrentConnection(config);
+                    close(descriptor);
+                }
+                addBytesTransferred(config,rf.bytesTransferred);
             }
         }
     }

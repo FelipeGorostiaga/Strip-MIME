@@ -62,6 +62,8 @@ void newAccess(Configuration conf);
 
 void newConcurrentConnection(Configuration conf);
 
+void closedConcurrentConnection(Configuration conf);
+
 void addBytesTransferred(Configuration conf, long bytes);
 
 

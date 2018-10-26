@@ -19,8 +19,10 @@ int parseConfig(int socket, Configuration config);
 int readSocket(int socket, void * buffer, size_t size);
 
 /* Edits configuration of pop3 filter */
-void editConfiguration(Configuration config, char opCode, char * buffer, int socket);
+void editConfiguration(Configuration config, char opCode, char * buffer, int socket, ssize_t contentSize);
 
 /* Parses initial arguments*/
 int parseArguments(Configuration config,int argc, char * argv []);
 
+/* Parses content for metrics and returns buffer with values */
+void getMetrics(Configuration  config, const char * buffer, ssize_t contentSize);
