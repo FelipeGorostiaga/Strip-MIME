@@ -10,6 +10,7 @@
 #define BUFF_SIZE 256
 #define BUFFER_END 15
 #define NOT_FOUND 0
+#define NOT_SUPPORTED -1
 #define CONTINUE 0
 
 typedef struct attendReturningFields {

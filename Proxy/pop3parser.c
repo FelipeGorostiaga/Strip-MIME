@@ -6,6 +6,7 @@
 #include <string.h>
 #include <time.h>
 #include <ctype.h>
+#include <signal.h>
 #include "pop3parser.h"
 
 
@@ -18,7 +19,6 @@ struct attendReturningFields attendClient(int clientSockFd, int originServerSock
     rf.closeConnectionFlag = FALSE;
     rf.bytesTransferred = 0;
     envVars = envVariables;
-    startFilter();
     clientFd = clientSockFd;
     originServer = originServerSock;
     pipeliningSupported = pipeliningSupport(originServer);
@@ -28,6 +28,7 @@ struct attendReturningFields attendClient(int clientSockFd, int originServerSock
     else {
         noPipeliningMode();
     }
+    printf("Returning attend client\n");
     return rf;
 }
 
@@ -36,7 +37,9 @@ void pipeliningMode() {
 
     while(!clientReadIsFinished) {
         clientReadIsFinished = readFromClient();
+        printf("Just read form client client read %s finished\n",clientReadIsFinished==TRUE?"is":"isn't");
     }
+
     writeAndReadFilter();
 }
 
@@ -48,7 +51,7 @@ void noPipeliningMode() {
 
     while(!clientReadIsFinished) {
         if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
-            fprintf(stderr,"Read error");
+            fprintf(stderr,"Read error in no pipelining mode");
             exit(EXIT_FAILURE);
         }
         rf.bytesTransferred += bytesRead;
@@ -83,10 +86,10 @@ void parseChunk(char * buffer, ssize_t chunkSize) {
 
 void writeCommandEnd(char * buffer, size_t len) {
     int originReadIsFinished = FALSE;
+
     write(originServer,buffer,len);
     while(!originReadIsFinished) {
         originReadIsFinished = readFromOrigin();
-
     }
     writeAndReadFilter();
 }
@@ -109,17 +112,22 @@ int readFromClient() {
     char buffer [BUFF_SIZE] = {0};
     size_t i;
 
-    if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
-        fprintf(stderr,"Read error");
+    if((bytesRead = read(clientFd,buffer, BUFF_SIZE-1)) == -1) {
+        fprintf(stderr,"Error reading from client\n");
         exit(EXIT_FAILURE);
     }
+    printf("Successful read from client\n");
     rf.bytesTransferred += bytesRead;
-    for(i = 1; i + 4 < bytesRead; i++) {
+    for(i = 1; (i + 4) < bytesRead; i++) {
         if(buffer[i-1] == '\r' && buffer[i] == '\n') {
             logAccess(buffer,i+1);
         }
     }
-    write(originServer,buffer,(size_t )bytesRead);
+    buffer[bytesRead] = 0;
+    printf("Buffer size is %d an bytesRead is %d\n", BUFF_SIZE-1, (uint)bytesRead);
+    printf("Read: %s", buffer);
+    write(originServer,buffer,(size_t )bytesRead-2);
+    write(originServer,"\r\n",2);
     if(bytesRead < BUFF_SIZE) {
         return TRUE;
     }
@@ -131,7 +139,7 @@ int readFromOrigin() {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
     if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
-        fprintf(stderr, "Read error");
+        fprintf(stderr, "Error reading from origin\n");
         exit(EXIT_FAILURE);
     }
     rf.bytesTransferred += bytesRead;
@@ -147,11 +155,13 @@ int readFromFilter() {
     char buffer [BUFF_SIZE] = {0};
 
     if ((bytesRead = read(pipeFds[0], buffer, BUFF_SIZE)) == -1) {
-        fprintf(stderr, "Read error");
+        fprintf(stderr, "Error reading from filter\n");
         exit(EXIT_FAILURE);
     }
+    buffer[bytesRead] = 0;
+    printf("Read the following from filter: %s\n", buffer);
     write(clientFd,buffer,(size_t)bytesRead);
-    if(buffer[bytesRead-1] == EOF) {
+    if(buffer[bytesRead-2] == '\r') {
         return TRUE;
     }
     return FALSE;
@@ -161,11 +171,15 @@ int readFromFilter() {
 
 void startFilter() {
     int i;
+    char *argv[] = {"echo", 0};
 
     if(fork() == 0) {
         for(i = 0; i < 5; i++) {
             putenv(envVars[i]);
         }
+        dup2(pipeFds[1],STDIN_FILENO);
+        dup2(pipeFds[0],STDOUT_FILENO);
+        execvp(argv[0],argv);
     }
     else {
         if(pipe(pipeFds) == -1) {
@@ -185,9 +199,10 @@ int pipeliningSupport(int originServer) {
     write(originServer,"CAPA\r\n",6);
     while(!found) {
         if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
-            fprintf(stderr, "Error opening pipes to filter");
+            fprintf(stderr, "Error reading capabilities from origin server");
             exit(EXIT_FAILURE);
         }
+        buffer[bytesRead] = '\0';
         if (bytesRead < BUFF_SIZE) {
             if(firstRead) {
                  return findPipelining(buffer, bytesRead);
@@ -206,6 +221,9 @@ int pipeliningSupport(int originServer) {
             memcpy(extendedBuff,previousEnd,BUFFER_END);
             memcpy(extendedBuff+BUFFER_END,buffer,BUFF_SIZE);
             found = findPipelining(extendedBuff, BUFFER_END + BUFF_SIZE);
+            if(found == NOT_SUPPORTED) {
+                return FALSE;
+            }
         }
         memcpy(previousEnd,buffer + BUFF_SIZE - BUFFER_END, BUFFER_END);
     }
@@ -218,6 +236,9 @@ int findPipelining(char * str, ssize_t size) {
     size_t pipeliningLen = strlen("PIPELINING");
 
     do {
+        if(str[i] == '\r' && str[i+1] == '\n') {
+            return NOT_SUPPORTED;
+        }
         val = strncmp(str + i, "PIPELINING",pipeliningLen);
         if(val == 0) {
             return TRUE;

@@ -20,6 +20,7 @@ int main(int argc, char * argv []) {
     popSocketFd = createPassiveSocket(&popSocketAddress,getPop3dir(config),getLocalPort(config), IPPROTO_TCP);
     configSocketFd = createPassiveSocket(&configSocketAddress,getManagDir(config),getManagementPort(config),IPPROTO_SCTP);
     originServerFd = socketToOriginServer(getOriginServer(config));
+    startFilter();
     selectLoop();
     return 0;
 }
@@ -103,17 +104,16 @@ void selectLoop() {
 void checkForNewClients(int socket, int clientType) {
 
     int  newSocket, addrLen, i;
-    char * successMessage = "Success\n";
+    char buffer[BUFFER_SIZE];
 
     if (FD_ISSET(socket, &readfds)) {
         if ((newSocket = accept(popSocketFd, (struct sockaddr *)&popSocketAddress, (socklen_t*)&addrLen))<0) {
             perror("Error accepting new client");
             exit(EXIT_FAILURE);
         }
-        if( send(newSocket, successMessage, strlen(successMessage), 0) != strlen(successMessage) ) {
+        if( write(newSocket,buffer,(size_t )read(originServerFd,buffer,BUFFER_SIZE)) == -1) {
             perror("Error at send call");
         }
-        printf("Client accepted successfully\n");
         for (i = 0; i < MAX_CLIENTS; i++) {
             if(clientSockets[i] == 0) {
                 clientSockets[i] = newSocket;
