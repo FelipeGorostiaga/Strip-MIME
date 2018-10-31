@@ -17,8 +17,8 @@
 #define ADMIN 2
 
 /* Creates passive socket */
-int createPassiveSocket(struct sockaddr_in * address,in_addr_t direction, uint16_t port, int transportProtocol);
-
+int createPassiveSocket(struct sockaddr_in * address, struct sockaddr_in6 * address6,
+                        struct in6_addr addr6, struct in_addr addr, uint16_t port,int family, int transportProtocol);
 /*Creates socket to origin server*/
 int socketToOriginServer(in_addr_t address);
 

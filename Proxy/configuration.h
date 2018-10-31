@@ -21,9 +21,13 @@ typedef struct configuration {
     /* -h */
     char * help;
     /* -l */
-    in_addr_t pop3dir;
+    struct in_addr pop3dir;
+    struct in6_addr pop3dir6;
+    int pop3dirFamily;
     /* -L */
-    in_addr_t managDir;
+    struct in_addr managDir;
+    struct in6_addr managDir6;
+    int managDirFamily;
     /* -m */
     char * replaceMessage;
     /* -M */
@@ -45,6 +49,7 @@ typedef struct configuration {
     char * currentUser;
     char * originServerString;
     in_addr_t originServer;
+    int originServerIsActive;
 } configuration;
 
 typedef configuration * Configuration;
@@ -69,11 +74,15 @@ void addBytesTransferred(Configuration conf, long bytes);
 
 uint16_t strToUint16(const char * str);
 
+int getFamily(char * dir);
+
 /* Getters */
 char * getErrorFile(Configuration conf);
 char * getHelp(Configuration conf);
-in_addr_t getPop3dir(Configuration conf);
-in_addr_t getManagDir(Configuration conf);
+struct in_addr getPop3dir(Configuration conf);
+struct in6_addr getPop3dir6(Configuration conf);
+struct in_addr getManagDir(Configuration conf);
+struct in6_addr getManagDir6(Configuration conf);
 char * getReplaceMessage(Configuration conf);
 char * getCensurableMediaTypes(Configuration conf);
 uint16_t getManagementPort(Configuration conf);
@@ -82,11 +91,14 @@ uint16_t getOriginPort(Configuration conf);
 char * getCommand(Configuration conf);
 char * getVersion(Configuration conf);
 in_addr_t getOriginServer(Configuration conf);
+int getOriginServerIsActive(Configuration conf);
 char * getOriginServerString(Configuration conf);
 char * getCurrentUser(Configuration conf);
 char * getTotalAccesses(Configuration conf) ;
 char * getBytesTransferred(Configuration conf);
 char * getConcurrentConnections(Configuration conf);
+int getPopDirFamily(Configuration conf);
+int getManagDirFamily(Configuration conf);
 
 /*Setters*/
 int setErrorFile(Configuration conf, char * errorFile);

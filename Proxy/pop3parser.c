@@ -10,7 +10,7 @@
 #include "pop3parser.h"
 
 
-static int clientFd, originServer, pipeliningSupported;
+static int clientFd, originServer, pipeliningSupported, requestsNum, responsesNum;
 static int pipeFds[2];
 static char ** envVars;
 struct attendReturningFields rf;
@@ -18,6 +18,7 @@ struct attendReturningFields rf;
 struct attendReturningFields attendClient(int clientSockFd, int originServerSock, char * envVariables [5]) {
     rf.closeConnectionFlag = FALSE;
     rf.bytesTransferred = 0;
+    requestsNum = responsesNum = 0;
     envVars = envVariables;
     clientFd = clientSockFd;
     originServer = originServerSock;
@@ -98,8 +99,10 @@ void writeAndReadFilter() {
     int originReadIsFinished = FALSE, filterReadIsFinished = FALSE;
 
     while(!originReadIsFinished || !filterReadIsFinished) {
+        printf("Requests: %d. Responses:%d\n", requestsNum, responsesNum);
         if(!originReadIsFinished) {
             originReadIsFinished = readFromOrigin();
+            printf("Requests: %d. Responses:%d\n", requestsNum, responsesNum);
         }
         if(!filterReadIsFinished) {
             filterReadIsFinished = readFromFilter();
@@ -112,22 +115,22 @@ int readFromClient() {
     char buffer [BUFF_SIZE] = {0};
     size_t i;
 
-    if((bytesRead = read(clientFd,buffer, BUFF_SIZE-1)) == -1) {
+    if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
         fprintf(stderr,"Error reading from client\n");
         exit(EXIT_FAILURE);
     }
     printf("Successful read from client\n");
     rf.bytesTransferred += bytesRead;
-    for(i = 1; (i + 4) < bytesRead; i++) {
-        if(buffer[i-1] == '\r' && buffer[i] == '\n') {
+    for(i = 0; (i + 4) < bytesRead; i++) {
+        if(buffer[i] == '\n') {
+            requestsNum += 1;
             logAccess(buffer,i+1);
         }
     }
     buffer[bytesRead] = 0;
-    printf("Buffer size is %d an bytesRead is %d\n", BUFF_SIZE-1, (uint)bytesRead);
+    printf("Buffer size is %d an bytesRead is %d\n", BUFF_SIZE, (uint)bytesRead);
     printf("Read: %s", buffer);
-    write(originServer,buffer,(size_t )bytesRead-2);
-    write(originServer,"\r\n",2);
+    write(originServer,buffer,(size_t )bytesRead);
     if(bytesRead < BUFF_SIZE) {
         return TRUE;
     }
@@ -142,9 +145,13 @@ int readFromOrigin() {
         fprintf(stderr, "Error reading from origin\n");
         exit(EXIT_FAILURE);
     }
+    printf("Llegue\n");
+    responsesNum += countResponses(buffer,bytesRead);
+    printf("Termine\n");
+    printf("Responses after update: %d\n",responsesNum);
     rf.bytesTransferred += bytesRead;
     write(pipeFds[1],buffer,(size_t)bytesRead);
-    if(bytesRead < BUFF_SIZE) {
+    if(responsesNum == requestsNum) {
         return TRUE;
     }
     return FALSE;
@@ -161,7 +168,7 @@ int readFromFilter() {
     buffer[bytesRead] = 0;
     printf("Read the following from filter: %s\n", buffer);
     write(clientFd,buffer,(size_t)bytesRead);
-    if(buffer[bytesRead-2] == '\r') {
+    if(responsesNum == requestsNum) {
         return TRUE;
     }
     return FALSE;
@@ -290,4 +297,27 @@ int commandsAreEqual(const char * command1, const char * command2) {
     }
 
     return strncmp(aux1,aux2,4) == 0 ? TRUE : FALSE;
+}
+
+int countResponses(char * buf, ssize_t size) {
+    int i = 0, count = 0;
+
+    if(buf[0] != '+' && buf[0] != '-') {
+        while (i < size && buf[i++] != '\r');
+        if(i == size) {
+            return 0;
+        }
+        count++;
+    }
+    for(; i < size; i++) {
+        if(strncmp(buf,"+OK",strlen("+OK")) == 0 || strncmp(buf,"-ERR",strlen("+OK")) == 0) {
+            while (i < size || buf[i] != '\r') { i++; }
+            if(i == size) {
+                return count;
+            }
+            i++;
+            count++;
+        }
+    }
+    return count;
 }
