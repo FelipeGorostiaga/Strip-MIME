@@ -1,7 +1,5 @@
 #include "main.h"
 
-struct sockaddr_in addr;
-
 //TODO
 //Checkear si con readFromProxy() devolviendo la response null-terminated el flujo no deberia cambiar
 //Test socket connections
@@ -16,9 +14,9 @@ int main(void) {
     //testSendMetrics();
     //test2();
     //test(); 
-    initSettings();
-    //socket = connectSocket();
-    //authenticate(socket);
+    //initSettings();
+    socket = connectSocket();
+    authenticate(socket);
     welcome();
 
     while(option ==  CONTINUE) {
@@ -127,7 +125,7 @@ int readCommands(int socket) {
                     errorNum = 0;
                 }
                 else {
-                    getProxyVersion();
+                    getProxyVersion('v',socket);
                     state = END;
                 }
                 break;
@@ -208,16 +206,15 @@ int readCommands(int socket) {
     else if (state == END) printf("Ended in END state, try again...\n");
     else if(state == ERROR) printErrorMessage(errorNum);
     else if(state == LETTER) printErrorMessage(1); 
-    else if(state == VERSION) getProxyVersion();
+    else if(state == VERSION) getProxyVersion('v',socket);
     else if(state == HELP) printHelp();
  
     return 1;
 }
 
 void cleanBuffer() {
-    int c;
     fflush(stdin);
-    while(c=getchar() != '\n');
+    while(getchar() != '\n');
 }
 
 void getProxyVersion(int cmd, int socket) {
@@ -314,7 +311,7 @@ void readResponse(char * response, int cmd) {
     if(response != NULL ) {
         c = response[0];
         if(c == cmd) {
-            size = response[1];
+            size = (uint8_t)response[1];
             if(size == 2) {
                 if(isOK(response + 2)) {
                     successMessage(cmd);
@@ -335,7 +332,7 @@ void readResponse(char * response, int cmd) {
 
 }
 
-int isOK(char *s) {
+int isOK(const char *s) {
     return (*s == 'O' && (*(s+1)) == 'K'); 
 }
 
@@ -405,7 +402,7 @@ char * readFromProxy(int fd, int cmd) {
 }
 
 int sendToProxy(int cmd, char * buffer, size_t size, int fd) {
-    char sendSize;
+    uint8_t sendSize;
     char sendBuffer[257];
     int index = 0;
     int actSize;
@@ -413,15 +410,15 @@ int sendToProxy(int cmd, char * buffer, size_t size, int fd) {
     do {
         setToZero(sendBuffer,sizeof(sendBuffer));
         if(size > 255) sendSize = 255;
-        else sendSize = size;
+        else sendSize = (uint8_t)size;
         size -= sendSize;
         sendBuffer[0] = (char)cmd;
         sendBuffer[1] = (char)sendSize;
         memcpy(sendBuffer + 2, buffer + index, sendSize);
         actSize = sendSize + 2;
-        if(write(fd,sendBuffer,actSize) !=  actSize) {
-            return 0;
+        if(write(fd,sendBuffer,(size_t)actSize) !=  actSize) {
             printf("Error, write in send to proxy function failed to send all bytes! \n");
+            return 0;
         }
         index += sendSize;
     }while(size != 0);
@@ -449,7 +446,7 @@ int getLine(char *prmpt, char *buff, size_t sz) {
         printf ("%s", prmpt);
         fflush (stdout);
     }
-    if (fgets (buff, sz, stdin) == NULL)
+    if (fgets (buff, (int)sz, stdin) == NULL)
         return NO_INPUT;
 
     if (buff[strlen(buff)-1] != '\n') {
@@ -476,59 +473,34 @@ void printMetric(char * metric, char * metricValue) {
         value = atoi(metricValue);
         printf("Metric:%s with value:%d\n",metric,value);
     }
-    return;
 }
 
 int isErrorMessage(char * string) {
     char * s = malloc(6);
-    int res;
     memcpy(s,string,5);
     s[5] = '\0';
-    res = strcmp(s,"ERROR");
+    strcmp(s,"ERROR");
     free(s);
     if(s == 0) return 1;
     return 0;
 }
 
-
-void initSettings() {
-    memset((void*)&addr,0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(9090);
-    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-}
-
 int connectSocket() {
-    int fd, ret;
-    struct sctp_initmsg initmsg;
-    struct sctp_event_subscribe events;
+    int fd;
 
-    if((fd = socket(AF_UNSPEC,SOCK_STREAM,IPPROTO_SCTP)) == -1 ) {
+    if((fd = socket(AF_INET,SOCK_STREAM,IPPROTO_SCTP)) == -1 ) {
         printf("Error creating socket\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
-    memset(&initmsg,0, sizeof(struct sctp_initmsg));
-    initmsg.sinit_num_ostreams  = MAX_STREAMS;
-    initmsg.sinit_max_instreams = MAX_STREAMS;
-    initmsg.sinit_max_attempts  = MAX_STREAMS;
-    ret = setsockopt(fd,IPPROTO_SCTP, SCTP_INITMSG, &initmsg, sizeof(struct sctp_initmsg));
-    if(ret<0) {
-        perror("setsockopt SCTP_INITMSG");
-        exit(1);
-    }
+    struct sockaddr_in servAddr;
+    memset(&servAddr, 0, sizeof(servAddr));
+    servAddr.sin_family = AF_INET;
+    inet_pton(AF_INET, "127.0.0.1", &servAddr.sin_addr.s_addr);
+    servAddr.sin_port = htons(9090);
 
-    events.sctp_association_event = 1;
-    events.sctp_data_io_event = 1;
-    ret = setsockopt(fd,IPPROTO_SCTP,SCTP_EVENTS, &events, sizeof(events));
-    if(ret < 0) {
-        perror("setsockopt SCTP_EVENTS");
-        exit(1);
-    }
- 
-    if((ret = connect(fd,(struct sockaddr*)&addr, sizeof(addr))) == -1) {
-        printf(("Error connecting to proxy socket\n"));
-        exit(1);
+    if (connect(fd, (struct sockaddr *) &servAddr, sizeof(servAddr)) < 0) {
+        exit(EXIT_FAILURE);
     }
     return fd;
 }

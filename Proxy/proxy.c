@@ -124,17 +124,21 @@ void checkForNewClients(int socket, int clientType) {
     char buffer[BUFFER_SIZE];
 
     if (FD_ISSET(socket, &readfds)) {
-        if ((newSocket = accept(popSocketFd, (struct sockaddr *)&popSocketAddress, (socklen_t*)&addrLen))<0) {
+        if ((newSocket = accept(socket, (struct sockaddr *)&popSocketAddress, (socklen_t*)&addrLen))<0) {
             perror("Error accepting new client");
             exit(EXIT_FAILURE);
         }
-        if(!getOriginServerIsActive(config)) {
-            write(newSocket,"-ERR Connection refused", strlen("-ERR Connection refused"));
-            close(newSocket);
-            return;
-        }
-        if( write(newSocket,buffer,(size_t )read(originServerFd,buffer,BUFFER_SIZE)) == -1) {
-            perror("Error at send call");
+        if(clientType == CLIENT) {
+            if(!getOriginServerIsActive(config)) {
+                write(newSocket,"-ERR Connection refused", strlen("-ERR Connection refused"));
+                close(newSocket);
+                return;
+            }
+            if( write(newSocket,buffer,(size_t )read(originServerFd,buffer,BUFFER_SIZE)) == -1) {
+                perror("Error at send call");
+            }
+        } else {
+            printf("New admin accepted\n");
         }
         for (i = 0; i < MAX_CLIENTS; i++) {
             if(clientSockets[i] == 0) {

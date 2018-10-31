@@ -7,7 +7,6 @@
 
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netinet/sctp.h>
 #include <arpa/inet.h>
 #define TRUE 1
 #define FALSE 0
@@ -24,9 +23,9 @@ enum states {START,ERROR,WORD,VERSION,METRICS,GUION,HELP,QUIT,END,SPACE,LETTER};
 
 void RemoveSpaces(char * source);
 int getLine(char *prmpt, char *buff, size_t sz);
-int readCommands();
+int readCommands(int socket);
 void welcome();
-void getProxyVersion();
+void getProxyVersion(int cmd, int socket);
 void clearScreen();
 void printErrorMessage(int errorCode);
 void printHelp();
@@ -47,8 +46,8 @@ void tokenizeMetrics(char *buff);
 
 
 void setToZero(char *buff, size_t size);
-int isOK(char *s);
-int isErrorMessage(char * string);
+int isOK(const char *s);
+        int isErrorMessage(char * string);
 
 void testParseMetrics();
 void testSendMetrics();
