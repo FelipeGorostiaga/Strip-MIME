@@ -62,3 +62,5 @@ size_t commandEnd(const char * buffer, ssize_t size);
 void logAccess(char * buffer, size_t cmdStart);
 
 int commandsAreEqual(const char * command1, const char * command2);
+
+int countResponses(char * buf, ssize_t size);

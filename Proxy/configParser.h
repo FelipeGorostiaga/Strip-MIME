@@ -26,3 +26,6 @@ int parseArguments(Configuration config,int argc, char * argv []);
 
 /* Parses content for metrics and returns buffer with values */
 void getMetrics(Configuration  config, const char * buffer, ssize_t contentSize);
+
+/*Receives password and writes response to client */
+void validatePassword(char * buffer, int socket);

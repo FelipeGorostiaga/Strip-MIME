@@ -58,6 +58,8 @@ void editConfiguration(Configuration config, char opCode, char * buffer, int soc
             break;
         case 'z' : getMetrics(config, buffer, contentSize); write(socket,metrics,strlen((const char*)metrics));
             break;
+        case 'x' : validatePassword(buffer,socket);
+            break;
         default:
             break;
     }
@@ -117,4 +119,22 @@ void getMetrics(Configuration  config, const char * buffer, ssize_t contentSize)
         }
     }
     metrics[metricsIndex-1] = '\0';
+}
+
+void validatePassword(char * buffer, int socket) {
+    uint8_t retBuff [BUFFER_SIZE];
+    uint8_t len;
+    retBuff[0] = 'x';
+
+    if(strcmp(buffer,"adminpass") == 0) {
+        len = 2;
+        memcpy(retBuff + 1,&len,1);
+        memcpy(retBuff + 2,"OK",len);
+    }
+    else {
+        len = 5;
+        memcpy(retBuff + 1,&len,1);
+        memcpy(retBuff + 2,"ERROR",len);
+    }
+    write(socket,buffer,2+len);
 }
