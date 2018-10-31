@@ -19,7 +19,7 @@
 #define ERROR_LENGTHM 5
 #define BUFF_SIZE 1024
 
-enum states {START,ERROR,WORD,VERSION,METRICS,GUION,HELP,QUIT,END,SPACE,LETTER};
+enum states {START,ERROR,WORD,VERSION,GUION,HELP,QUIT,END,SPACE,LETTER};
 
 void RemoveSpaces(char * source);
 int getLine(char *prmpt, char *buff, size_t sz);
@@ -29,7 +29,7 @@ void getProxyVersion(int cmd, int socket);
 void clearScreen();
 void printErrorMessage(int errorCode);
 void printHelp();
-int handleCommandProxy(char *buff, int cmd, int fd);
+void handleCommandProxy(char *buff, int cmd, int fd);
 void authenticate(int fd);
 void checkInput(int ret);
 void cleanBuffer();

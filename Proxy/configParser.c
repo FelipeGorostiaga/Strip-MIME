@@ -13,23 +13,22 @@ int parseConfig(int socket, Configuration config) {
     char opCode;
     ssize_t bytesRead = 0, contentSize;
     uint8_t aux;
-
+    contentSize = 0;
+    printf("LLEGUE antes\n");
+    readSocket(socket,&opCode,1);
+    printf("opcode: %c\n",opCode);
     do {
-        contentSize = 0;
-        bytesRead = readSocket(socket,&opCode,1);
+        bytesRead = readSocket(socket,&aux,1);
+        printf("length: %d\n",aux);
         if(bytesRead == 0) { break; }
-        do {
-            bytesRead = readSocket(socket,&aux,1);
-            if(bytesRead == 0) { break; }
-            contentSize += aux;
-        } while(aux != MAX_CONTENT_LEN);
-        buffer = realloc(buffer,(contentSize+1)* sizeof(uint8_t));
-        bytesRead = readSocket(socket,buffer,(size_t)contentSize);
-        if(bytesRead == 0) { break; }
-        buffer[contentSize] = 0;
-        editConfiguration(config,opCode,(char *)buffer, socket, contentSize);
-    }
-    while(TRUE);
+        contentSize += aux;
+    } while(aux == MAX_CONTENT_LEN);
+    buffer = realloc(buffer,(contentSize+1)* sizeof(uint8_t));
+    bytesRead = readSocket(socket,buffer,(size_t)contentSize);
+    buffer[bytesRead] = 0;
+    printf("content: %s\n",buffer);
+    buffer[contentSize] = 0;
+    editConfiguration(config,opCode,(char *)buffer, socket, contentSize);
     return SUCCESS;
 }
 
@@ -122,19 +121,22 @@ void getMetrics(Configuration  config, const char * buffer, ssize_t contentSize)
 }
 
 void validatePassword(char * buffer, int socket) {
-    uint8_t retBuff [BUFFER_SIZE];
+    uint8_t retBuff [BUFFER_SIZE] = {0};
     uint8_t len;
     retBuff[0] = 'x';
 
     if(strcmp(buffer,"adminpass") == 0) {
         len = 2;
-        memcpy(retBuff + 1,&len,1);
+        retBuff[1] = len;
         memcpy(retBuff + 2,"OK",len);
     }
     else {
         len = 5;
-        memcpy(retBuff + 1,&len,1);
+        retBuff[1] = len;
         memcpy(retBuff + 2,"ERROR",len);
     }
-    write(socket,buffer,2+len);
+    buffer[7] = 0;
+    printf("longitud mandada: %d\n",len);
+    printf("mandando %s\n", retBuff);
+    write(socket,retBuff,2+len);
 }
