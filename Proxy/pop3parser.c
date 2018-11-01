@@ -120,8 +120,9 @@ int readFromClient() {
         exit(EXIT_FAILURE);
     }
     printf("Successful read from client\n");
+    logAccess(buffer,0);
     rf.bytesTransferred += bytesRead;
-    for(i = 0; (i + 4) < bytesRead; i++) {
+    for(i = 0; i < bytesRead; i++) {
         if(buffer[i] == '\n') {
             requestsNum += 1;
             logAccess(buffer,i+1);

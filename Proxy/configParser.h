@@ -28,4 +28,4 @@ int parseArguments(Configuration config,int argc, char * argv []);
 void getMetrics(Configuration  config, const char * buffer, ssize_t contentSize);
 
 /*Receives password and writes response to client */
-void validatePassword(char * buffer, int socket);
+int validatePassword(char * buffer, int socket);

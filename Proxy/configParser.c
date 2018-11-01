@@ -14,7 +14,6 @@ int parseConfig(int socket, Configuration config) {
     ssize_t bytesRead = 0, contentSize;
     uint8_t aux;
     contentSize = 0;
-    printf("LLEGUE antes\n");
     readSocket(socket,&opCode,1);
     printf("opcode: %c\n",opCode);
     do {
@@ -44,7 +43,18 @@ int readSocket(int socket, void * buffer, size_t size) {
 
 void editConfiguration(Configuration config, char opCode, char * buffer, int socket, ssize_t contentSize) {
     int ret = FALSE;
-    uint8_t metrics [10] = {0};
+    uint8_t len;
+    uint8_t response [10] = {0};
+
+    if(opCode == 'v') {
+        char * vers = getVersion(config);
+        len = (uint8_t )strlen(vers);
+        response[0] = 'v';
+        response[1] = len;
+        memcpy(response+2,vers,len);
+        write(socket,response,len+2);
+        return;
+    }
 
     switch(opCode) {
         case 'e': ret = setErrorFile(config, buffer);
@@ -55,27 +65,28 @@ void editConfiguration(Configuration config, char opCode, char * buffer, int soc
             break;
         case 't' : ret = setCommand(config, buffer);
             break;
-        case 'z' : getMetrics(config, buffer, contentSize); write(socket,metrics,strlen((const char*)metrics));
-            break;
-        case 'x' : validatePassword(buffer,socket);
+        case 'z' : getMetrics(config, buffer, contentSize);
+            write(socket,metrics,strlen((const char*)metrics));
+            return;
+        case 'x' : ret = validatePassword(buffer,socket);
             break;
         default:
             break;
     }
 
-    metrics[0] = (uint8_t)opCode;
+    response[0] = (uint8_t)opCode;
     if(ret == TRUE) {
-        metrics[1] = (uint8_t)2;
-        metrics[2] = 'O';
-        metrics[3] = 'K';
-        write(socket,metrics,4);
-    } else {
-        metrics[1] = (uint8_t)3;
-        metrics[2] = 'E';
-        metrics[3] = 'R';
-        metrics[4] = 'R';
-        write(socket,metrics,5);
+        len = 2;
+        response[1] = len;
+        memcpy(response + 2,"OK",len);
     }
+    else {
+        len = 5;
+        response[1] = len;
+        memcpy(response + 2,"ERROR",len);
+    }
+    write(socket,response,2+len);
+
 }
 
 int parseArguments(Configuration config, int argc, char * argv []) {
@@ -120,23 +131,10 @@ void getMetrics(Configuration  config, const char * buffer, ssize_t contentSize)
     metrics[metricsIndex-1] = '\0';
 }
 
-void validatePassword(char * buffer, int socket) {
-    uint8_t retBuff [BUFFER_SIZE] = {0};
-    uint8_t len;
-    retBuff[0] = 'x';
+int validatePassword(char * buffer, int socket) {
 
     if(strcmp(buffer,"adminpass") == 0) {
-        len = 2;
-        retBuff[1] = len;
-        memcpy(retBuff + 2,"OK",len);
+        return TRUE;
     }
-    else {
-        len = 5;
-        retBuff[1] = len;
-        memcpy(retBuff + 2,"ERROR",len);
-    }
-    buffer[7] = 0;
-    printf("longitud mandada: %d\n",len);
-    printf("mandando %s\n", retBuff);
-    write(socket,retBuff,2+len);
+    return FALSE;
 }
