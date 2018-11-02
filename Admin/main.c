@@ -1,10 +1,22 @@
+#include <netdb.h>
 #include "main.h"
 
-int main(void) {
+int main(int argc, char * argv []) {
     int socket;
-    int option = CONTINUE; 
+    int option = CONTINUE;
+    int port;
+    char * address;
 
-    socket = connectSocket();
+    if(argc == 1) {
+        address = "127.0.0.1";
+        port = 9090;
+    }
+    else {
+        address = argv[1];
+        port = atoi(argv[2]);
+    }
+
+    socket = connectSocket(address, port);
     authenticate(socket);
     welcome();
     printHelp();
@@ -19,7 +31,7 @@ int main(void) {
 }
 
 void clearScreen() {
-    //system("clear");
+    system("clear");
 }
 
 void exitWmsg(char * msg) {
@@ -475,7 +487,7 @@ int isErrorMessage(char * string) {
     return 0;
 }
 
-int connectSocket() {
+int connectSocket(char * address, int port) {
     int fd;
 
     if((fd = socket(AF_INET,SOCK_STREAM,IPPROTO_SCTP)) == -1 ) {
@@ -486,8 +498,8 @@ int connectSocket() {
     struct sockaddr_in servAddr;
     memset(&servAddr, 0, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
-    inet_pton(AF_INET, "127.0.0.1", &servAddr.sin_addr.s_addr);
-    servAddr.sin_port = htons(9090);
+    inet_pton(AF_INET, address, &servAddr.sin_addr.s_addr);
+    servAddr.sin_port = htons(port);
 
     if (connect(fd, (struct sockaddr *) &servAddr, sizeof(servAddr)) < 0) {
         exit(EXIT_FAILURE);

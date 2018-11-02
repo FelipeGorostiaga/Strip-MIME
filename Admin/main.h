@@ -33,7 +33,7 @@ void handleCommandProxy(char *buff, int cmd, int fd);
 void authenticate(int fd);
 void checkInput(int ret);
 void cleanBuffer();
-int connectSocket();
+int connectSocket(char * address, int port);
 void initSettings();
 int sendToProxy(int cmd, char * buffer, size_t size, int fd);
 char * readFromProxy(int fd, int cmd);
