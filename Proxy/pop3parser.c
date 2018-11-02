@@ -200,7 +200,7 @@ int readFromFilter() {
 
 void startFilter() {
     int i;
-    char *argv[] = {"echo", 0};
+    char *argv[] = {"cat", 0};
 
     if(fork() == 0) {
         for(i = 0; i < 5; i++) {
@@ -332,7 +332,7 @@ int countResponses(char * buf, ssize_t size) {
         count++;
     }
     for(; i < size; i++) {
-        if(strncmp(buf,"+OK",strlen("+OK")) == 0 || strncmp(buf,"-ERR",strlen("+OK")) == 0) {
+        if(strncmp(buf,"+OK",strlen("+OK")) == 0 || strncmp(buf,"-ERR",strlen("-ERR")) == 0) {
             while (i < size || buf[i] != '\r') { i++; }
             if(i == size) {
                 return count;

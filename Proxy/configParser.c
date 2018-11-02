@@ -6,7 +6,7 @@
 
 extern int parseArgs(Configuration conf, int argc, char * argv []);
 
-char metrics [BUFFER_SIZE];
+char * metrics;
 
 int parseConfig(int socket, Configuration config) {
     uint8_t * buffer = malloc(MAX_CONTENT_LEN* sizeof(uint8_t));
@@ -14,6 +14,7 @@ int parseConfig(int socket, Configuration config) {
     ssize_t bytesRead = 0, contentSize;
     uint8_t aux;
     contentSize = 0;
+    metrics = calloc(BUFFER_SIZE, sizeof(char));
     readSocket(socket,&opCode,1);
     printf("opcode: %c\n",opCode);
     do {
@@ -28,6 +29,7 @@ int parseConfig(int socket, Configuration config) {
     printf("content: %s\n",buffer);
     buffer[contentSize] = 0;
     editConfiguration(config,opCode,(char *)buffer, socket, contentSize);
+    free(metrics);
     return SUCCESS;
 }
 
@@ -66,6 +68,7 @@ void editConfiguration(Configuration config, char opCode, char * buffer, int soc
         case 't' : ret = setCommand(config, buffer);
             break;
         case 'z' : getMetrics(config, buffer, contentSize);
+            printf("Writing: %s\n",metrics);
             write(socket,metrics,strlen((const char*)metrics));
             return;
         case 'x' : ret = validatePassword(buffer,socket);
@@ -93,14 +96,23 @@ int parseArguments(Configuration config, int argc, char * argv []) {
     return parseArgs(config,argc,argv);
 }
 
+void clearAux(char * aux) {
+    int i;
+    for(i = 0; i < BUFFER_SIZE; i++) {
+        aux[i] = 0;
+    }
+}
+
 void getMetrics(Configuration  config, const char * buffer, ssize_t contentSize) {
     int i, auxIndex, metricsIndex;
     char aux [BUFFER_SIZE] = {0};
     char * configData;
 
-    auxIndex = 0; metricsIndex = 0;
-    for(i = 0; i < contentSize; i++) {
-        if(buffer[i] == ' ') {
+    metrics[0] = 'z';
+    metrics[1] = 'z';
+    auxIndex = 0; metricsIndex = 2;
+    for(i = 0; i < contentSize+1 ; i++) {
+        if(buffer[i] == ' ' || i == contentSize) {
             aux[auxIndex] = '\0';
             auxIndex = 0;
             if(strcmp(aux,"BYTES") == 0) {
@@ -119,16 +131,21 @@ void getMetrics(Configuration  config, const char * buffer, ssize_t contentSize)
                 configData = getTotalAccesses(config);
             }
             else {
-                return;
+                configData = "NULL";
             }
             strcpy(metrics + metricsIndex, configData);
-            metricsIndex += strlen(configData+1);
+            metricsIndex += strlen(configData);
+            if(i != contentSize) {
+                metrics[metricsIndex++] = ' ';
+            }
+            clearAux(aux);
         }
         else {
-            aux[auxIndex] = buffer[i];
+            aux[auxIndex++] = buffer[i];
         }
+
     }
-    metrics[metricsIndex-1] = '\0';
+    metrics[1] = (char)((uint8_t )strlen(metrics) -2);
 }
 
 int validatePassword(char * buffer, int socket) {

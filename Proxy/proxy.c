@@ -170,6 +170,8 @@ void readFromClients() {
     for (i = 0; i < MAX_CLIENTS; i++) {
         descriptor = clientSockets[i];
         if (FD_ISSET( descriptor , &readfds)) {
+            newAccess(config);
+            newConcurrentConnection(config);
             if(clientTypeArray[i] == ADMIN) {
                 retVal = parseConfig(descriptor, config);
                 if(retVal == CLOSED_SOCKET) {
@@ -184,8 +186,6 @@ void readFromClients() {
                     clientTypeArray[i] = clientSockets[i] = originServerSockets[i] = 0;
                     return;
                 }
-                newAccess(config);
-                newConcurrentConnection(config);
                 strcpy(env,"FILTER_MEDIAS=");
                 strcpy(env+strlen("FILTER_MEDIAS="),getCensurableMediaTypes(config));
                 envVariables[0] = env;
