@@ -54,13 +54,16 @@ void pipeliningMode() {
 void noPipeliningMode() {
     ssize_t bytesRead;
     int clientReadIsFinished = FALSE;
-
     char buffer [BUFF_SIZE] = {0};
 
     while(!clientReadIsFinished) {
         if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
             fprintf(stderr,"Read error in no pipelining mode");
             exit(EXIT_FAILURE);
+        }
+        if(bytesRead == 0) {
+            rf.closeConnectionFlag = TRUE;
+            return;
         }
         rf.bytesTransferred += bytesRead;
         if(bytesRead < BUFF_SIZE) {
@@ -71,35 +74,37 @@ void noPipeliningMode() {
 }
 
 void parseChunk(char * buffer, ssize_t chunkSize) {
-    size_t cmdStart = 0, cmdEnd = 0;
-    int endFound = TRUE;
-
-    while(endFound) {
-        cmdEnd = commandEnd(buffer+cmdStart,chunkSize);
-        if(cmdEnd == NOT_FOUND) {
-            endFound = FALSE;
-            write(originServer,buffer+cmdStart,chunkSize-cmdStart);
-        }
-        else {
-            writeCommandEnd(buffer + cmdStart, cmdEnd - cmdStart);
-            cmdStart = cmdEnd + 1;
-            logAccess(buffer,cmdStart);
-            if(commandsAreEqual(buffer+cmdStart,"quit")) {
+    int cmdStart = 0, cmdEnd = 0;
+    int endWithNewline = FALSE;
+    int originClosed;
+    char aux[BUFF_SIZE] = {0};
+    int i = 0;
+    if(requestsNum == 0) {
+        logAccess(buffer,(size_t )cmdStart);
+    }
+    for(i = 0; i < chunkSize; i++) {
+        if(buffer[i] == '\n') {
+            cmdEnd = i;
+            requestsNum += 1;
+            cleanAndSend(buffer,cmdStart,cmdEnd);
+            originClosed = writeAndReadFilter();
+            if(originClosed) {
                 rf.closeConnectionFlag = TRUE;
+                return;
+            }
+            cmdStart = cmdEnd + 1;
+            if(i == chunkSize-1) {
+                endWithNewline = TRUE;
+                printf("Found a newline in last position\n");
+            } else {
+                logAccess(buffer,(size_t )cmdStart);
             }
         }
     }
-
-}
-
-void writeCommandEnd(char * buffer, size_t len) {
-    int originReadIsFinished = FALSE;
-
-    write(originServer,buffer,len);
-    while(!originReadIsFinished) {
-        originReadIsFinished = readFromOrigin();
+    if(!endWithNewline) {
+        write(originServer,buffer+cmdStart, (size_t)chunkSize-cmdStart);
     }
-    writeAndReadFilter();
+
 }
 
 int writeAndReadFilter() {
@@ -167,9 +172,12 @@ int readFromOrigin() {
     if(bytesRead == 0) {
         return QUIT;
     }
-    printf("Llegue\n");
-    responsesNum += countResponses(buffer,bytesRead);
-    printf("Termine\n");
+    if(pipeliningSupported) {
+        responsesNum += countResponses(buffer,bytesRead);
+    }
+    else {
+        responsesNum += 1;
+    }
     printf("Responses after update: %d\n",responsesNum);
     rf.bytesTransferred += bytesRead;
     write(pipeFds[1],buffer,(size_t)bytesRead);
@@ -257,7 +265,7 @@ int pipeliningSupport(int originServer) {
         memcpy(previousEnd,buffer + BUFF_SIZE - BUFFER_END, BUFFER_END);
     }
     return TRUE;
-
+return FALSE;
 }
 
 int findPipelining(char * str, ssize_t size) {
@@ -277,48 +285,16 @@ int findPipelining(char * str, ssize_t size) {
     return FALSE;
 }
 
-size_t commandEnd(const char * buffer, ssize_t size) {
-    size_t i;
-    int rFound;
-
-    for(i = 0; i < size; i ++) {
-        if(buffer[i] == '\r') {
-            rFound = TRUE;
-        }
-        else {
-            rFound = FALSE;
-        }
-        if(buffer[i] == '\n' && rFound) {
-            return i;
-        }
-    }
-    return 0;
-}
-
 void logAccess(char * buffer, size_t cmdStart) {
     char cmd [5] = {0};
-
+    char buff[100];
+    time_t now = time (0);
+    strftime (buff, 100, "%Y-%m-%d %H:%M:%S.000", localtime (&now));
+    fprintf(stdout,"%s ", buff);
     memcpy(cmd,buffer+cmdStart,4* sizeof(char));
-    fprintf(stdout,"%lu ", (unsigned long)time(NULL));
     fprintf(stdout,"id: %d ", clientFd);
     fprintf(stdout,"%s\n",cmd);
 
-}
-
-int commandsAreEqual(const char * command1, const char * command2) {
-    char aux1[5] = {0};
-    char aux2[5] = {0};
-    int i;
-
-    memcpy(aux1,command1,4* sizeof(char));
-    memcpy(aux2,command2,4* sizeof(char));
-
-    for(i = 0; i < 4; i++) {
-        aux1[i] = (char)tolower(aux1[i]);
-        aux2[i] = (char)tolower(aux2[i]);
-    }
-
-    return strncmp(aux1,aux2,4) == 0 ? TRUE : FALSE;
 }
 
 int countResponses(char * buf, ssize_t size) {

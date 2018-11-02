@@ -128,7 +128,8 @@ void checkForNewClients(int socket, int clientType) {
     char buffer[BUFFER_SIZE];
 
     if (FD_ISSET(socket, &readfds)) {
-
+        newAccess(config);
+        newConcurrentConnection(config);
         printf("HAY UN CLIENTE NUEVO!\n");
         if ((newSocket = accept(socket, (struct sockaddr *)&popSocketAddress, (socklen_t*)&addrLen))<0) {
             perror("Error accepting new client");
@@ -170,8 +171,6 @@ void readFromClients() {
     for (i = 0; i < MAX_CLIENTS; i++) {
         descriptor = clientSockets[i];
         if (FD_ISSET( descriptor , &readfds)) {
-            newAccess(config);
-            newConcurrentConnection(config);
             if(clientTypeArray[i] == ADMIN) {
                 retVal = parseConfig(descriptor, config);
                 if(retVal == CLOSED_SOCKET) {
