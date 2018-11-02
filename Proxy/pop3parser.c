@@ -35,13 +35,20 @@ struct attendReturningFields attendClient(int clientSockFd, int originServerSock
 
 void pipeliningMode() {
     int clientReadIsFinished = FALSE;
+    int originClosed;
 
     while(!clientReadIsFinished) {
         clientReadIsFinished = readFromClient();
-        printf("Just read form client client read %s finished\n",clientReadIsFinished==TRUE?"is":"isn't");
+        printf("Just read form client client read %s finished\n",clientReadIsFinished?"is":"isn't");
     }
-
-    writeAndReadFilter();
+    if(clientReadIsFinished == QUIT) {
+        rf.closeConnectionFlag = TRUE;
+        return;
+    }
+    originClosed = writeAndReadFilter();
+    if(originClosed == QUIT) {
+        rf.closeConnectionFlag = TRUE;
+    }
 }
 
 void noPipeliningMode() {
@@ -95,43 +102,54 @@ void writeCommandEnd(char * buffer, size_t len) {
     writeAndReadFilter();
 }
 
-void writeAndReadFilter() {
+int writeAndReadFilter() {
     int originReadIsFinished = FALSE, filterReadIsFinished = FALSE;
 
     while(!originReadIsFinished || !filterReadIsFinished) {
         printf("Requests: %d. Responses:%d\n", requestsNum, responsesNum);
         if(!originReadIsFinished) {
             originReadIsFinished = readFromOrigin();
+            if(originReadIsFinished == QUIT) {
+                return QUIT;
+            }
             printf("Requests: %d. Responses:%d\n", requestsNum, responsesNum);
         }
         if(!filterReadIsFinished) {
             filterReadIsFinished = readFromFilter();
         }
     }
+    return 0;
 }
 
 int readFromClient() {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
     size_t i;
+    int cmdStart = 0;
 
     if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
         fprintf(stderr,"Error reading from client\n");
         exit(EXIT_FAILURE);
     }
-    printf("Successful read from client\n");
+    if(bytesRead == 0) {
+        return QUIT;
+    }
     logAccess(buffer,0);
     rf.bytesTransferred += bytesRead;
     for(i = 0; i < bytesRead; i++) {
         if(buffer[i] == '\n') {
             requestsNum += 1;
+            if(cleanAndSend(buffer,cmdStart,(int)i) == QUIT) {
+                return QUIT;
+            }
             logAccess(buffer,i+1);
+            cmdStart = (int)i+1;
         }
     }
     buffer[bytesRead] = 0;
     printf("Buffer size is %d an bytesRead is %d\n", BUFF_SIZE, (uint)bytesRead);
     printf("Read: %s", buffer);
-    write(originServer,buffer,(size_t )bytesRead);
+
     if(bytesRead < BUFF_SIZE) {
         return TRUE;
     }
@@ -145,6 +163,9 @@ int readFromOrigin() {
     if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
         fprintf(stderr, "Error reading from origin\n");
         exit(EXIT_FAILURE);
+    }
+    if(bytesRead == 0) {
+        return QUIT;
     }
     printf("Llegue\n");
     responsesNum += countResponses(buffer,bytesRead);
@@ -322,3 +343,27 @@ int countResponses(char * buf, ssize_t size) {
     }
     return count;
 }
+
+int cleanAndSend(const char * buffer, int cmdStart, int cmdEnd) {
+    char aux [BUFF_SIZE];
+    int i = cmdStart;
+    int j = 0, k = 0;
+    while(i <= cmdEnd) {
+        aux[j] = buffer[i];
+        i++;
+        j++;
+    }
+    aux[j] = 0;
+    for(k = 0; aux[j - k - 3] == ' ' &&  k < (cmdEnd - cmdStart); k++);
+    if( k != 0 ) {
+        aux[j - k - 2] = '\r';
+        aux[j - k - 1] = '\n';
+        aux[j - k] = '0';
+    }
+    printf("Sending command: %s\n",aux);
+    if(write(originServer,aux,(size_t) (j-k)) == 0) {
+        return QUIT;
+    }
+    return TRUE;
+}
+

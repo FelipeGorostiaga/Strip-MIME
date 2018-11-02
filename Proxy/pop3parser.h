@@ -10,8 +10,9 @@
 #define BUFF_SIZE 256
 #define BUFFER_END 15
 #define NOT_FOUND 0
-#define NOT_SUPPORTED -1
+#define NOT_SUPPORTED (-1)
 #define CONTINUE 0
+#define QUIT 2
 
 typedef struct attendReturningFields {
     int closeConnectionFlag;
@@ -35,7 +36,7 @@ void parseChunk(char * buffer, ssize_t bytesRead);
 void writeCommandEnd(char * buffer, size_t len);
 
 /*Performs simultaneous write and reads to filter*/
-void writeAndReadFilter();
+int writeAndReadFilter();
 
 /*Reads from client and forwards to origin server */
 int readFromClient();
@@ -64,3 +65,5 @@ void logAccess(char * buffer, size_t cmdStart);
 int commandsAreEqual(const char * command1, const char * command2);
 
 int countResponses(char * buf, ssize_t size);
+
+int cleanAndSend(const char * buffer, int cmdStart, int cmdEnd);

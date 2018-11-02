@@ -5,11 +5,12 @@
 #include "proxy.h"
 
 Configuration config;
-int popSocketFd, configSocketFd, originServerFd;
+int popSocketFd, configSocketFd, genericOriginServer;
 struct sockaddr_in popSocketAddress, configSocketAddress;
 struct sockaddr_in6 psa6, csa6;
 int clientSockets [MAX_CLIENTS];
 int clientTypeArray [MAX_CLIENTS];
+int originServerSockets [MAX_CLIENTS];
 fd_set readfds;
 
 int main(int argc, char * argv []) {
@@ -20,7 +21,9 @@ int main(int argc, char * argv []) {
     }
     popSocketFd = createPassiveSocket(&popSocketAddress,&psa6,getPop3dir6(config),getPop3dir(config),getLocalPort(config),getPopDirFamily(config), IPPROTO_TCP);
     configSocketFd = createPassiveSocket(&configSocketAddress,&csa6,getManagDir6(config),getManagDir(config),getManagementPort(config), getManagDirFamily(config),IPPROTO_SCTP);
-    originServerFd = socketToOriginServer(getOriginServer(config));
+    genericOriginServer = socketToOriginServer(getOriginServer(config));
+    firstReadToGeneric();
+    makeNonBlocking(genericOriginServer);
     startFilter();
     selectLoop();
     return 0;
@@ -96,9 +99,9 @@ void selectLoop() {
         FD_ZERO (&readfds);
         FD_SET(popSocketFd, &readfds);
         FD_SET(configSocketFd, &readfds);
-        FD_SET(originServerFd, &readfds);
+        FD_SET(genericOriginServer, & readfds);
         max = configSocketFd > popSocketFd ? configSocketFd : popSocketFd;
-        max = max > originServerFd ? max : originServerFd;
+        max = genericOriginServer > max ? genericOriginServer : max;
         for ( i = 0 ; i < MAX_CLIENTS ; i++) {
             descriptor = clientSockets[i];
             if(descriptor > 0) {
@@ -112,8 +115,9 @@ void selectLoop() {
         if ((selectReturn < 0) && (errno != EINTR)) {
             printf("select error");
         }
-        checkForNewClients(popSocketFd,CLIENT);
+        updateOriginOpenness();
         checkForNewClients(configSocketFd,ADMIN);
+        checkForNewClients(popSocketFd,CLIENT);
         readFromClients();
     }
 }
@@ -124,28 +128,34 @@ void checkForNewClients(int socket, int clientType) {
     char buffer[BUFFER_SIZE];
 
     if (FD_ISSET(socket, &readfds)) {
+
+        printf("HAY UN CLIENTE NUEVO!\n");
         if ((newSocket = accept(socket, (struct sockaddr *)&popSocketAddress, (socklen_t*)&addrLen))<0) {
             perror("Error accepting new client");
             exit(EXIT_FAILURE);
         }
-        if(clientType == CLIENT) {
-            if(!getOriginServerIsActive(config)) {
-                write(newSocket,"-ERR Connection refused", strlen("-ERR Connection refused"));
-                close(newSocket);
-                return;
-            }
-            if( write(newSocket,buffer,(size_t )read(originServerFd,buffer,BUFFER_SIZE)) == -1) {
-                perror("Error at send call");
-            }
-        } else {
-            printf("New admin accepted\n");
+        if(clientType == CLIENT && !getOriginServerIsActive(config)) {
+            write(newSocket,"-ERR Connection refused\r\n", strlen("-ERR Connection refused\r\n"));
+            close(newSocket);
+            return;
         }
         for (i = 0; i < MAX_CLIENTS; i++) {
             if(clientSockets[i] == 0) {
                 clientSockets[i] = newSocket;
                 clientTypeArray[i] = clientType;
+                originServerSockets[i] = socketToOriginServer(getOriginServer(config));
                 break;
             }
+        }
+        printf("YA TE ACEPTE!\n");
+        if(clientType == CLIENT) {
+            printf("SOS POP3, AHI TE MANDO LA BIENVENIDA!\n");
+            if( write(newSocket,buffer,(size_t )read(originServerSockets[i],buffer,BUFFER_SIZE)) == -1) {
+                perror("Error at send call");
+            }
+            printf("YA TE LA MANDE!\n");
+        } else {
+            printf("New admin accepted\n");
         }
         makeNonBlocking(newSocket);
     }
@@ -167,6 +177,13 @@ void readFromClients() {
                 }
             }
             else if(clientTypeArray[i] == CLIENT){
+                if(!getOriginServerIsActive(config)) {
+                    write(descriptor,"-ERR Connection refused\r\n", strlen("-ERR Connection refused\r\n"));
+                    close(descriptor);
+                    close(originServerSockets[i]);
+                    clientTypeArray[i] = clientSockets[i] = originServerSockets[i] = 0;
+                    return;
+                }
                 newAccess(config);
                 newConcurrentConnection(config);
                 strcpy(env,"FILTER_MEDIAS=");
@@ -184,10 +201,12 @@ void readFromClients() {
                 strcpy(env,"POP3_SERVER=");
                 strcpy(env+strlen("POP3_SERVER="),getOriginServerString(config));
                 envVariables[4] = env;
-                rf = attendClient(descriptor,originServerFd, envVariables);
+                rf = attendClient(descriptor,originServerSockets[i], envVariables);
                 if(rf.closeConnectionFlag == TRUE) {
                     closedConcurrentConnection(config);
                     close(descriptor);
+                    close(originServerSockets[i]);
+                    clientTypeArray[i] = clientSockets[i] = originServerSockets[i] = 0;
                 }
                 addBytesTransferred(config,rf.bytesTransferred);
             }
@@ -201,4 +220,20 @@ void makeNonBlocking(int fd) {
     if (status == -1){
         fprintf(stderr,"Error in fcntl");
     }
+}
+
+void updateOriginOpenness() {
+    char c;
+
+    if(getOriginServerIsActive(config) == TRUE && FD_ISSET(genericOriginServer,&readfds)) {
+        if(read(genericOriginServer,&c,1) == 0) {
+            setOriginServerIsActive(config,FALSE);
+        }
+    }
+}
+
+void firstReadToGeneric() {
+    char buff [BUFF_SIZE];
+
+    read(genericOriginServer,buff,BUFF_SIZE);
 }

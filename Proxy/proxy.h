@@ -33,3 +33,8 @@ void readFromClients();
 
 /*Makes the file descriptor fd non blocking*/
 void makeNonBlocking(int fd);
+
+
+void updateOriginOpenness();
+
+void firstReadToGeneric() ;

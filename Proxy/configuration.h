@@ -111,4 +111,5 @@ void setLocalPort(Configuration conf, char * localPort);
 void setOriginPort(Configuration conf, char * originPort);
 int setCommand(Configuration conf, char * command);
 void setOriginServer(Configuration conf, char * originServer);
+void setOriginServerIsActive(Configuration conf,int value);
 void setCurrentUser(Configuration conf, char * currentUser);

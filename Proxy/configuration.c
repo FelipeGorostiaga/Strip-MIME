@@ -174,6 +174,10 @@ void setOriginServer(Configuration conf, char * originServer) {
     }
 }
 
+void setOriginServerIsActive(Configuration conf,int value) {
+    conf->originServerIsActive = FALSE;
+}
+
 void setCurrentUser(Configuration conf, char * currentUser) {
     conf->currentUser = currentUser;
 }
