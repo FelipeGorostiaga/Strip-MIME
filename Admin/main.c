@@ -1,27 +1,16 @@
 #include "main.h"
 
-//TODO
-//Checkear si con readFromProxy() devolviendo la response null-terminated el flujo no deberia cambiar
-//Test socket connections
-//Testing with NULL-Terminated response from readFromProxy()
-//Authenticate:
-//- OK
-
 int main(void) {
     int socket;
     int option = CONTINUE; 
-    //testParseMetrics();
-    //testSendMetrics();
-    //test2();
-    //test(); 
-    //initSettings();
+
     socket = connectSocket();
     authenticate(socket);
     welcome();
+    printHelp();
 
     while(option ==  CONTINUE) {
         option = readCommands(socket);
-        printf("Option return value: %d\n",option);
     }
     close(socket);
     printf("Closing program...\n");
@@ -49,12 +38,6 @@ void authenticate(int fd) {
     char * passMsg = "Enter secret password:\n>";
     char * errorMsg = "Too many incorrect passwords!\n";
     do{ 
-        if(scmp != 0) {
-            clearScreen();
-            count++;
-            if(count >= 10) exitWmsg(errorMsg);
-            printf("Invalid password, try again...\n");
-        } 
         pass = getpass(passMsg);
         printf("PASS: %s\n",pass);
         if(sendToProxy('x',pass,strlen(pass),fd)) {
@@ -65,6 +48,12 @@ void authenticate(int fd) {
                 free(response);
             }
         }
+        if(scmp != 0) {
+            clearScreen();
+            count++;
+            if(count >= 10) exitWmsg(errorMsg);
+            printf("Invalid password, try again...\n");
+        } 
     } while(scmp != 0);
     fflush(stdin);
     clearScreen();
@@ -75,8 +64,8 @@ void authenticate(int fd) {
 
 
 int readCommands(int socket) {
-    printf("en read commands\n");
-    printf("Socket file descriptor:%d\n",socket);
+    printf("En readCommands\n");
+    //printf("Socket file descriptor:%d\n",socket);
     char * buff = (char *)malloc(BUFF_SIZE * sizeof(char));
     int errorNum = 0;
     int spaceCount = 0;
@@ -134,6 +123,7 @@ int readCommands(int socket) {
                     state = END;
                 }
                 break;
+
             case HELP:
                 if(isspace(c)) {
                     printHelp();
@@ -144,6 +134,7 @@ int readCommands(int socket) {
                     errorNum = 1;
                 }
                 break;
+
             case LETTER:
                 if(isspace(c)) {
                     state = WORD;
@@ -153,6 +144,7 @@ int readCommands(int socket) {
                     errorNum = 0;
                 }    
                 break;
+
             case WORD:
                 buff[0] = (char)c;
                 rt = getLine(NULL,buff+1, BUFF_SIZE);
@@ -168,8 +160,8 @@ int readCommands(int socket) {
                     handleCommandProxy(buff,cmd,socket);
                     state = END;
                 }
-
                 break;
+
             case QUIT:
                 if(!isspace(c)) {
                     state = ERROR;
@@ -178,6 +170,8 @@ int readCommands(int socket) {
                 else {
                     return 0;
                 }
+                break;
+
             case GUION:
                 if(!(isalpha(c))) {
                     state = ERROR;
@@ -208,7 +202,7 @@ int readCommands(int socket) {
         sleep(2);
         return 0;
     }
-    else if (state == END) printf("Ended in END state, try again...\n");
+    //else if (state == END) printf("Ended in END state, try again...\n");
     else if(state == ERROR) printErrorMessage(errorNum);
     else if(state == LETTER) printErrorMessage(1); 
     else if(state == VERSION) getProxyVersion('v',socket);
@@ -226,7 +220,7 @@ void getProxyVersion(int cmd, int socket) {
     int rt;
     char * response;
     char * buffer = malloc(sizeof(char));
-    
+    printf("IN HERE\n");
     rt = sendToProxy(cmd,buffer,0,socket);
     printf("En getProxyVersion, return from send to proxy was:%d\n",rt);
     if(!rt) {
@@ -278,7 +272,7 @@ int sendMetrics(char * buff, int fd) {
     char *metrics[4] = {"BYTES","CON_CON","TOT_CON","CON_PER_MIN"};
     int sizeMetrics[4] = {5,7,7,11};
     int size = 0;
-   
+    setToZero(createdBuffer,200);
     for(int i=0 ; i<4 ; i++) {
         if(strstr(buff,metrics[i]) != NULL) {
             printf("Metric %s FOUND\n",metrics[i]);
@@ -293,6 +287,8 @@ int sendMetrics(char * buff, int fd) {
         }
     }
     if(countMetrics > 0) {
+        printf("Created buffer en sendMetrics:%s\n",createdBuffer);
+        printf("With size:%d\n",size);
         if(!(sendToProxy('z',createdBuffer,(size_t)size,fd))) {
             printErrorMessage(4);
             return 0;
@@ -302,37 +298,27 @@ int sendMetrics(char * buff, int fd) {
         printErrorMessage(7);
     }
     free(createdBuffer);
+    printf("returning countMetrics:%d\n",countMetrics);
     return countMetrics;
 }
 
+
 void readResponse(char * response, int cmd) {
-    uint8_t size;
-    char c;
-    int error = 0;
-    
-    if(response != NULL ) {
-        c = response[0];
-        if(c == cmd) {
-            size = (uint8_t)response[1];
-            if(size == 2) {
-                if(isOK(response + 2)) {
-                    successMessage(cmd);
-                }
-            }
-            else {
-                error = TRUE;
-            }
-        }
-        else {
-            error = TRUE;
-        }
+
+    if(response == NULL) {
+        printErrorMessage(5);
+    }
+    if(strcmp(response,"OK") == 0) {
+        successMessage(cmd);
+    }
+    else if (strcmp(response,"ERROR") == 0) {
+        printErrorMessage(6);
     }
     else {
-        error = TRUE;
+        printErrorMessage(5);
     }
-    if(error) printErrorMessage(5);
+ }
 
-}
 
 int isOK(const char *s) {
     return (*s == 'O' && (*(s+1)) == 'K'); 
@@ -340,9 +326,9 @@ int isOK(const char *s) {
 
 void handleCommandProxy(char *buff, int cmd, int fd) {
     int rt;
-    printf("in handleCommandProxy\n");
     char * response;
-
+    
+    printf("in handleCommandProxy\n");
     printf("Command value: %c\n",cmd);
     printf("parameter value: %s\n",buff);
     printf("parameter length: %d\n",(int)strlen(buff));
@@ -370,6 +356,7 @@ void handleCommandProxy(char *buff, int cmd, int fd) {
 
 //Retorna el string NULL-TERMINATED
 char * readFromProxy(int fd, int cmd) {
+    printf("En readFromProxy\n");
     char firstBytes[2];
     char * buff = malloc(255 * sizeof(char));
 
@@ -379,9 +366,9 @@ char * readFromProxy(int fd, int cmd) {
         printErrorMessage(8);
         return NULL;
     }
-    printf("opcode is: %c\n",firstBytes[0]);
+    printf("opcode is:%c\n",firstBytes[0]);
     if(firstBytes[0] == (char)cmd ) {
-        printf("Read size is: %d\n",firstBytes[1]);
+        printf("Read size is:%d\n",firstBytes[1]);
     }
     else {
         printErrorMessage(5);
@@ -396,7 +383,7 @@ char * readFromProxy(int fd, int cmd) {
         return NULL;
     }
     buff[bytesRead] = '\0';
-    printf("String recieved: %s\n",buff);
+    printf("String recieved:%s\n",buff);
     return buff;
 }
 
@@ -404,18 +391,20 @@ int sendToProxy(int cmd, char * buffer, size_t size, int fd) {
     uint8_t sendSize;
     char sendBuffer[257];
     int index = 0;
-    int actSize;
-    
+    size_t actSize;
+    printf("En sendToProxy\n");
     do {
         setToZero(sendBuffer,sizeof(sendBuffer));
         if(size > 255) sendSize = 255;
         else sendSize = (uint8_t)size;
         size -= sendSize;
         sendBuffer[0] = (char)cmd;
-        sendBuffer[1] = (char)sendSize;
+        sendBuffer[1] = sendSize;
+        printf("CMD:%c,SENDSIZE:%d\n",cmd,sendSize);
         memcpy(sendBuffer + 2, buffer + index, sendSize);
         actSize = sendSize + 2;
         printf("BUFFER: %s\n", sendBuffer);
+        printf("Content size:%d\n",sendSize);
         if(write(fd,sendBuffer,(size_t)actSize) ==  -1) {
             printf("Error, write in send to proxy function failed to send all bytes! \n");
             return 0;
@@ -526,6 +515,7 @@ void welcome() {
 }
 
 void printErrorMessage(int errorCode) {
+    printf("En print error message con error code %d\n",errorCode);
     switch(errorCode) {
         case 0: printf("Invalid format command.\n");break;
         case 1: printf("Invalid command, missing arguments.\n");break;
