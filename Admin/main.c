@@ -19,7 +19,7 @@ int main(int argc, char * argv []) {
     socket = connectSocket(address, port);
     authenticate(socket);
     welcome();
-    printHelp();
+    //printHelp();
 
     while(option ==  CONTINUE) {
         option = readCommands(socket);
@@ -169,7 +169,7 @@ int readCommands(int socket) {
                     errorNum = 3;
                 }
                 else {
-                    handleCommandProxy(buff,cmd,socket);
+                    handleCommandProxy(buff,cmd,socket,0);
                     state = END;
                 }
                 break;
@@ -214,7 +214,7 @@ int readCommands(int socket) {
         sleep(2);
         return 0;
     }
-    //else if (state == END) printf("Ended in END state, try again...\n");
+    else if(state == LETTER && cmd == 'z') handleCommandProxy(buff,cmd,socket,1);
     else if(state == ERROR) printErrorMessage(errorNum);
     else if(state == LETTER) printErrorMessage(1); 
     else if(state == VERSION) getProxyVersion('v',socket);
@@ -328,20 +328,30 @@ int isOK(const char *s) {
     return (*s == 'O' && (*(s+1)) == 'K'); 
 }
 
-void handleCommandProxy(char *buff, int cmd, int fd) {
-    int rt;
+void sendAllMetrics(int fd) {
+    char str[] = "BYTES CON_CON TOT_CON";
+    sendToProxy('z',str,strlen(str),fd);
+}
+
+void handleCommandProxy(char *buff, int cmd, int fd,int def) {
+    int rt = 0;
     char * response;
-    
     clearScreen();
+
     if(cmd == 'z') {
-        rt = sendMetrics(buff,fd);
+        if(def) {
+            rt = 3;
+            sendAllMetrics(fd);
+        }
+        else {
+            rt = sendMetrics(buff,fd);
+        }
         if(rt) {
             response = readFromProxy(fd,cmd);
             parseMetrics(response,rt);
         }        
     }
     else {
-
         rt = sendToProxy(cmd,buff,strlen(buff),fd);
         if(rt) {
             response = readFromProxy(fd,cmd);
@@ -353,7 +363,6 @@ void handleCommandProxy(char *buff, int cmd, int fd) {
     }
 }
 
-//Retorna el string NULL-TERMINATED
 char * readFromProxy(int fd, int cmd) {
     char firstBytes[2];
     char * buff = malloc(255 * sizeof(char));
@@ -506,7 +515,6 @@ void welcome() {
 }
 
 void printErrorMessage(int errorCode) {
-    printf("En print error message con error code %d\n",errorCode);
     switch(errorCode) {
         case 0: printf("Invalid format command.\n");break;
         case 1: printf("Invalid command, missing arguments.\n");break;
@@ -514,7 +522,7 @@ void printErrorMessage(int errorCode) {
         case 3: printf("Invalid command, parameters can´t exceed 1024 characters long.\n");break;
         case 4: printf("Error sending data to server.\n");break;
         case 5: printf("Error, invalid response from server, please try again...\n");break;
-        case 6: printf("Server responded with ERROR\n");break;
+        case 6: printf("Error, invalid filename\n");break;
         case 7: printf("Invalid metric parameters, please try again...\n");break;
         case 8: printf("Error, couldn't read from server.\n");break;
         case 9: printf("Invalid metric values from server.\n");break;
