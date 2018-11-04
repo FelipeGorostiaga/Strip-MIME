@@ -76,7 +76,7 @@ void authenticate(int fd) {
 
 
 int readCommands(int socket) {
-    printf("En readCommands\n");
+    printf("Enter command:\n");
     //printf("Socket file descriptor:%d\n",socket);
     char * buff = (char *)malloc(BUFF_SIZE * sizeof(char));
     int errorNum = 0;
@@ -232,9 +232,8 @@ void getProxyVersion(int cmd, int socket) {
     int rt;
     char * response;
     char * buffer = malloc(sizeof(char));
-    printf("IN HERE\n");
+    clearScreen();
     rt = sendToProxy(cmd,buffer,0,socket);
-    printf("En getProxyVersion, return from send to proxy was:%d\n",rt);
     if(!rt) {
         printErrorMessage(4);
     }
@@ -251,28 +250,25 @@ void parseMetrics(char * response,int count) {
     char * metricValue;
 
     if(response != NULL ) {
-        if(response[0] == 'z') {
-            if((size = (uint8_t)response[1]) > 0) {
-                printf("size %d\n",(int)size);
-
-                if (isErrorMessage(response + (char)1)) {
-                    printErrorMessage(6);
-                    return;
-                }   
-                metric = strtok((response + (char)1)," ");
-                metricValue = strtok(NULL," ");
-                printMetric(metric,metricValue);
-                count--;
-                
-                while(metric != NULL && metricValue != NULL && count > 0) {
-                    metric = strtok(NULL," ");
-                    metricValue = strtok(NULL," ");
-                    printMetric(metric,metricValue);
-                    count--;
-                }
-            }  
+        if (isErrorMessage(response)) {
+            printErrorMessage(6);
+            return;
         }
+        printf("Data from Server:\n");   
+        metric = strtok(response," ");
+        metricValue = strtok(NULL," ");
+        printMetric(metric,metricValue);
+        count--;
+                
+        while(metric != NULL && metricValue != NULL && count > 0) {
+            metric = strtok(NULL," ");
+            metricValue = strtok(NULL," ");
+            printMetric(metric,metricValue);
+            count--;
+        }
+          
     }
+    
     else {
         printErrorMessage(5);
     }
@@ -287,7 +283,6 @@ int sendMetrics(char * buff, int fd) {
     setToZero(createdBuffer,200);
     for(int i=0 ; i<4 ; i++) {
         if(strstr(buff,metrics[i]) != NULL) {
-            printf("Metric %s FOUND\n",metrics[i]);
             
             if(countMetrics > 0){ 
                 createdBuffer[size] = ' ';
@@ -299,8 +294,6 @@ int sendMetrics(char * buff, int fd) {
         }
     }
     if(countMetrics > 0) {
-        printf("Created buffer en sendMetrics:%s\n",createdBuffer);
-        printf("With size:%d\n",size);
         if(!(sendToProxy('z',createdBuffer,(size_t)size,fd))) {
             printErrorMessage(4);
             return 0;
@@ -310,7 +303,6 @@ int sendMetrics(char * buff, int fd) {
         printErrorMessage(7);
     }
     free(createdBuffer);
-    printf("returning countMetrics:%d\n",countMetrics);
     return countMetrics;
 }
 
@@ -340,11 +332,7 @@ void handleCommandProxy(char *buff, int cmd, int fd) {
     int rt;
     char * response;
     
-    printf("in handleCommandProxy\n");
-    printf("Command value: %c\n",cmd);
-    printf("parameter value: %s\n",buff);
-    printf("parameter length: %d\n",(int)strlen(buff));
-
+    clearScreen();
     if(cmd == 'z') {
         rt = sendMetrics(buff,fd);
         if(rt) {
@@ -355,7 +343,6 @@ void handleCommandProxy(char *buff, int cmd, int fd) {
     else {
 
         rt = sendToProxy(cmd,buff,strlen(buff),fd);
-        printf("Send to proxy return value: %d\n",rt);
         if(rt) {
             response = readFromProxy(fd,cmd);
             readResponse(response,cmd);
@@ -368,7 +355,6 @@ void handleCommandProxy(char *buff, int cmd, int fd) {
 
 //Retorna el string NULL-TERMINATED
 char * readFromProxy(int fd, int cmd) {
-    printf("En readFromProxy\n");
     char firstBytes[2];
     char * buff = malloc(255 * sizeof(char));
 
@@ -378,15 +364,10 @@ char * readFromProxy(int fd, int cmd) {
         printErrorMessage(8);
         return NULL;
     }
-    printf("opcode is:%c\n",firstBytes[0]);
-    if(firstBytes[0] == (char)cmd ) {
-        printf("Read size is:%d\n",firstBytes[1]);
-    }
-    else {
+    if(firstBytes[0] != (char)cmd ) {
         printErrorMessage(5);
         return NULL;
     }
-    
     if(firstBytes[1] > 255) {
         printErrorMessage(5);
         return NULL;
@@ -395,7 +376,6 @@ char * readFromProxy(int fd, int cmd) {
         return NULL;
     }
     buff[bytesRead] = '\0';
-    printf("String recieved:%s\n",buff);
     return buff;
 }
 
@@ -404,7 +384,7 @@ int sendToProxy(int cmd, char * buffer, size_t size, int fd) {
     char sendBuffer[257];
     int index = 0;
     size_t actSize;
-    printf("En sendToProxy\n");
+
     do {
         setToZero(sendBuffer,sizeof(sendBuffer));
         if(size > 255) sendSize = 255;
@@ -412,11 +392,9 @@ int sendToProxy(int cmd, char * buffer, size_t size, int fd) {
         size -= sendSize;
         sendBuffer[0] = (char)cmd;
         sendBuffer[1] = sendSize;
-        printf("CMD:%c,SENDSIZE:%d\n",cmd,sendSize);
+
         memcpy(sendBuffer + 2, buffer + index, sendSize);
         actSize = sendSize + 2;
-        printf("BUFFER: %s\n", sendBuffer);
-        printf("Content size:%d\n",sendSize);
         if(write(fd,sendBuffer,(size_t)actSize) ==  -1) {
             printf("Error, write in send to proxy function failed to send all bytes! \n");
             return 0;
@@ -472,7 +450,7 @@ void printMetric(char * metric, char * metricValue) {
     }
     else {
         value = atoi(metricValue);
-        printf("Metric:%s with value:%d\n",metric,value);
+        printf("Metric %s = %d\n",metric,value);
     }
 }
 
@@ -502,6 +480,7 @@ int connectSocket(char * address, int port) {
     servAddr.sin_port = htons(port);
 
     if (connect(fd, (struct sockaddr *) &servAddr, sizeof(servAddr)) < 0) {
+        printf("Error connecting to proxy server\n");
         exit(EXIT_FAILURE);
     }
     return fd;
@@ -539,8 +518,7 @@ void printErrorMessage(int errorCode) {
         case 7: printf("Invalid metric parameters, please try again...\n");break;
         case 8: printf("Error, couldn't read from server.\n");break;
         case 9: printf("Invalid metric values from server.\n");break;
-        default:
-            break;
+        default: break;
     }
 }
 
@@ -550,8 +528,7 @@ void successMessage(int cmd) {
         case 't': printf("Successfully updated command\n");break;
         case 'e': printf("Successfully updated error file redirect\n");break;
         case 'f': printf("Successfully updated metrics file redirect\n");break;
-        default:
-            break;
+        default: break;
     }
 
 }
