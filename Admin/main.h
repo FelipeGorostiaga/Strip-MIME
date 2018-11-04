@@ -29,7 +29,7 @@ void getProxyVersion(int cmd, int socket);
 void clearScreen();
 void printErrorMessage(int errorCode);
 void printHelp();
-void handleCommandProxy(char *buff, int cmd, int fd);
+void handleCommandProxy(char *buff, int cmd, int fd,int def);
 void authenticate(int fd);
 void checkInput(int ret);
 void cleanBuffer();

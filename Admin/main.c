@@ -215,6 +215,7 @@ int readCommands(int socket) {
         return 0;
     }
     else if(state == LETTER && cmd == 'z') handleCommandProxy(buff,cmd,socket,1);
+    else if(state == WORD) printErrorMessage(0);
     else if(state == ERROR) printErrorMessage(errorNum);
     else if(state == LETTER) printErrorMessage(1); 
     else if(state == VERSION) getProxyVersion('v',socket);
