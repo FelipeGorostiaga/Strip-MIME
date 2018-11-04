@@ -7,10 +7,11 @@
 #include <time.h>
 #include <ctype.h>
 #include <signal.h>
+#include <errno.h>
 #include "pop3parser.h"
 
 
-static int clientFd, originServer, pipeliningSupported, requestsNum, responsesNum;
+static int clientFd, originServer, pipeliningSupported, requestsNum, responsesNum, filteredResponses;
 static int pipeFds[2];
 static char ** envVars;
 struct attendReturningFields rf;
@@ -18,7 +19,7 @@ struct attendReturningFields rf;
 struct attendReturningFields attendClient(int clientSockFd, int originServerSock, char * envVariables [5]) {
     rf.closeConnectionFlag = FALSE;
     rf.bytesTransferred = 0;
-    requestsNum = responsesNum = 0;
+    requestsNum = responsesNum = filteredResponses = 0;
     envVars = envVariables;
     clientFd = clientSockFd;
     originServer = originServerSock;
@@ -41,9 +42,11 @@ void pipeliningMode() {
         clientReadIsFinished = readFromClient();
         printf("Just read form client client read %s finished\n",clientReadIsFinished?"is":"isn't");
     }
-    if(clientReadIsFinished == QUIT) {
+    if(clientReadIsFinished == QUIT || clientReadIsFinished == QUITCOMMAND) {
         rf.closeConnectionFlag = TRUE;
-        return;
+        if(clientReadIsFinished == QUIT) {
+            return;
+        }
     }
     originClosed = writeAndReadFilter();
     if(originClosed == QUIT) {
@@ -53,11 +56,13 @@ void pipeliningMode() {
 
 void noPipeliningMode() {
     ssize_t bytesRead;
-    int clientReadIsFinished = FALSE;
     char buffer [BUFF_SIZE] = {0};
 
-    while(!clientReadIsFinished) {
+    while(TRUE) {
         if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
+            if(errno == EWOULDBLOCK) {
+                return;
+            }
             fprintf(stderr,"Read error in no pipelining mode");
             exit(EXIT_FAILURE);
         }
@@ -66,9 +71,6 @@ void noPipeliningMode() {
             return;
         }
         rf.bytesTransferred += bytesRead;
-        if(bytesRead < BUFF_SIZE) {
-            clientReadIsFinished = TRUE;
-        }
         parseChunk(buffer, bytesRead);
     }
 }
@@ -77,8 +79,8 @@ void parseChunk(char * buffer, ssize_t chunkSize) {
     int cmdStart = 0, cmdEnd = 0;
     int endWithNewline = FALSE;
     int originClosed;
-    char aux[BUFF_SIZE] = {0};
     int i = 0;
+
     if(requestsNum == 0) {
         logAccess(buffer,(size_t )cmdStart);
     }
@@ -133,6 +135,10 @@ int readFromClient() {
     int cmdStart = 0;
 
     if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
+        if(errno == EWOULDBLOCK) {
+            printf("Read would block\n");
+            return TRUE;
+        }
         fprintf(stderr,"Error reading from client\n");
         exit(EXIT_FAILURE);
     }
@@ -154,10 +160,6 @@ int readFromClient() {
     buffer[bytesRead] = 0;
     printf("Buffer size is %d an bytesRead is %d\n", BUFF_SIZE, (uint)bytesRead);
     printf("Read: %s", buffer);
-
-    if(bytesRead < BUFF_SIZE) {
-        return TRUE;
-    }
     return FALSE;
 }
 
@@ -172,12 +174,7 @@ int readFromOrigin() {
     if(bytesRead == 0) {
         return QUIT;
     }
-    if(pipeliningSupported) {
-        responsesNum += countResponses(buffer,bytesRead);
-    }
-    else {
-        responsesNum += 1;
-    }
+    responsesNum += countResponses(buffer,bytesRead);
     printf("Responses after update: %d\n",responsesNum);
     rf.bytesTransferred += bytesRead;
     write(pipeFds[1],buffer,(size_t)bytesRead);
@@ -192,13 +189,19 @@ int readFromFilter() {
     char buffer [BUFF_SIZE] = {0};
 
     if ((bytesRead = read(pipeFds[0], buffer, BUFF_SIZE)) == -1) {
+        if(errno == EWOULDBLOCK) {
+            if(filteredResponses == requestsNum) { return TRUE; }
+            return FALSE;
+        }
         fprintf(stderr, "Error reading from filter\n");
         exit(EXIT_FAILURE);
     }
     buffer[bytesRead] = 0;
     printf("Read the following from filter: %s\n", buffer);
+    printf("Count of filter\n");
+    filteredResponses += countResponses(buffer,bytesRead);
     write(clientFd,buffer,(size_t)bytesRead);
-    if(responsesNum == requestsNum) {
+    if(filteredResponses == requestsNum) {
         return TRUE;
     }
     return FALSE;
@@ -265,7 +268,6 @@ int pipeliningSupport(int originServer) {
         memcpy(previousEnd,buffer + BUFF_SIZE - BUFFER_END, BUFFER_END);
     }
     return TRUE;
-return FALSE;
 }
 
 int findPipelining(char * str, ssize_t size) {
@@ -298,25 +300,20 @@ void logAccess(char * buffer, size_t cmdStart) {
 }
 
 int countResponses(char * buf, ssize_t size) {
-    int i = 0, count = 0;
+    int i = 0, count = 0, mailEndingParse = FALSE;
+    printf("Counting responses from: %s\n", buf);
 
-    if(buf[0] != '+' && buf[0] != '-') {
-        while (i < size && buf[i++] != '\r');
-        if(i == size) {
-            return 0;
-        }
-        count++;
-    }
-    for(; i < size; i++) {
-        if(strncmp(buf,"+OK",strlen("+OK")) == 0 || strncmp(buf,"-ERR",strlen("-ERR")) == 0) {
-            while (i < size || buf[i] != '\r') { i++; }
-            if(i == size) {
-                return count;
-            }
-            i++;
+
+    for(i = 0; i < size; i++) {
+        if(!mailEndingParse && buf[i] == '\r' && buf[i+1] == '\n'
+           && ((i + 5 >= size && size != BUFF_SIZE) || (buf[i+2] == '.' && buf[i+3] == '\r' && buf[i+4] == '\n'))) {
+            mailEndingParse = TRUE;
+            printf("Buffer after is: %s\n", buf+i);
+            printf("buff[i+2] is %c\n", buf[i+2]);
             count++;
         }
     }
+    printf("COUNT: %d\n",count);
     return count;
 }
 
@@ -339,6 +336,9 @@ int cleanAndSend(const char * buffer, int cmdStart, int cmdEnd) {
     printf("Sending command: %s\n",aux);
     if(write(originServer,aux,(size_t) (j-k)) == 0) {
         return QUIT;
+    }
+    if(strncasecmp((buffer+cmdStart),"QUIT",4) == 0) {
+        return QUITCOMMAND;
     }
     return TRUE;
 }

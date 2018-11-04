@@ -4,6 +4,7 @@
 
 #include <unistd.h>
 #include <stdio.h>
+#include <string.h>
 
 #define TRUE 1
 #define FALSE 0
@@ -12,6 +13,7 @@
 #define NOT_SUPPORTED (-1)
 #define CONTINUE 0
 #define QUIT 2
+#define QUITCOMMAND 3
 
 typedef struct attendReturningFields {
     int closeConnectionFlag;
