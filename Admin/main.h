@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <sys/types.h>
+#include <netdb.h>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -21,7 +22,6 @@
 
 enum states {START,ERROR,WORD,VERSION,GUION,HELP,QUIT,END,SPACE,LETTER};
 
-void RemoveSpaces(char * source);
 int getLine(char *prmpt, char *buff, size_t sz);
 int readCommands(int socket);
 void welcome();
@@ -31,7 +31,6 @@ void printErrorMessage(int errorCode);
 void printHelp();
 void handleCommandProxy(char *buff, int cmd, int fd,int def);
 void authenticate(int fd);
-void checkInput(int ret);
 void cleanBuffer();
 int connectSocket(char * address, int port);
 void initSettings();
@@ -41,19 +40,9 @@ void successMessage(int cmd);
 int sendMetrics(char * buff, int fd);
 void parseMetrics(char * response,int count);
 void printMetric(char * metric, char * metricValue);
-
-void tokenizeMetrics(char *buff);
-
-
 void setToZero(char *buff, size_t size);
 int isOK(const char *s);
-        int isErrorMessage(char * string);
-
-void testParseMetrics();
-void testSendMetrics();
-void test();
-void test2();
-
+int isErrorMessage(char * string);
 
 
 

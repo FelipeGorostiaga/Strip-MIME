@@ -1,4 +1,3 @@
-#include <netdb.h>
 #include "main.h"
 
 int main(int argc, char * argv []) {
@@ -15,18 +14,14 @@ int main(int argc, char * argv []) {
         address = argv[1];
         port = atoi(argv[2]);
     }
-
     socket = connectSocket(address, port);
     authenticate(socket);
     welcome();
-    //printHelp();
-
     while(option ==  CONTINUE) {
         option = readCommands(socket);
     }
     close(socket);
     printf("Closing program...\n");
-
     return 0;
 }
 
@@ -77,7 +72,6 @@ void authenticate(int fd) {
 
 int readCommands(int socket) {
     printf("Enter command:\n");
-    //printf("Socket file descriptor:%d\n",socket);
     char * buff = (char *)malloc(BUFF_SIZE * sizeof(char));
     int errorNum = 0;
     int spaceCount = 0;
@@ -336,7 +330,7 @@ void sendAllMetrics(int fd) {
 
 void handleCommandProxy(char *buff, int cmd, int fd,int def) {
     int rt = 0;
-    char * response;
+    char * response = NULL;
     clearScreen();
 
     if(cmd == 'z') {
@@ -362,6 +356,7 @@ void handleCommandProxy(char *buff, int cmd, int fd,int def) {
             printErrorMessage(4);
         }
     }
+    free(response);
 }
 
 char * readFromProxy(int fd, int cmd) {
@@ -413,19 +408,6 @@ int sendToProxy(int cmd, char * buffer, size_t size, int fd) {
     }while(size != 0);
 
     return 1;
-}
-
-void removeSpaces(char * source) {
-  char* i = source;
-  char* j = source;
-  
-  while(*j != 0)
-  {
-    *i = *j++;
-    if(*i != ' ')
-      i++;
-  }
-  *i = 0;
 }
 
 int getLine(char *prmpt, char *buff, size_t sz) {
@@ -507,7 +489,9 @@ void printHelp() {
     printf("-m <message> change default replace message\n");
     printf("-v Get proxy server version\n");
     printf("-z BYTES CON_CON TOT_CON TIME Get specified metrics, no parameters will get all metrics\n");   
+    printf("-q Exit \n");
 }
+
 
 void welcome() {
     printf("Welcome Administrator!\n");
@@ -542,96 +526,3 @@ void successMessage(int cmd) {
 
 }
 
-void test() {
-    char * rt;
-    char buff[100];
-
-    getLine("Insert test string\n",buff,sizeof(buff));
-    printf("Entered string:%s\n",buff);
-    char *str[4] = {" uno "," dos "," tres "," cuatro "};
-    for(int i = 0 ; i<4 ; i++) {
-        if((rt = strstr(buff,str[i])) != NULL) {
-            printf("%s esta! \n",str[i]);
-        }
-    }
-}
-
-void test2() {
-    char buff[100];
-
-    getLine("Insert test string\n",buff,sizeof(buff));
-    printf("Entered string:%s\n",buff);
-    removeSpaces(buff);
-    printf("No spaces =%s\n",buff);
-}
-
-
-void testParseMetrics() {
-    int count = 2;
-    char * buff = (char *)malloc(200);
-
-    getLine("Insert test string\n",buff,200);
-    printf("Entered string:%s\n",buff);
-    parseMetrics(buff,count);
-}
-
-void testSendMetrics() {
-    char * buff = (char *)malloc(200);
-    char * createdBuffer = (char *)malloc(200);
-    char *metrics[4] = {"BYTES","CON_CON","TOT_CON","CON_PER_MIN"};
-    int sizeMetrics[4] = {5,7,7,11};
-    int countMetrics = 0;
-    int size = 0;
-
-    getLine("Insert test string\n",buff,200);
-    printf("Entered string:%s\n",buff);
-
-    for(int i=0 ; i<4 ; i++) {
-        if(strstr(buff,metrics[i]) != NULL) {
-            printf("Metric %s FOUND\n",metrics[i]);
-            
-            if(countMetrics > 0){ 
-                createdBuffer[size] = ' ';
-                size++;
-            }
-            strcpy((char *)(createdBuffer +(char)size),metrics[i]);
-            size += sizeMetrics[i];
-            countMetrics++;
-        }
-    }
-    //createdBuffer[size] = '\0';
-    printf("Count metrics:%d\nSize:%d\n",countMetrics,size);
-    printf("Created buffer:%s\n",createdBuffer);
-    free(buff);
-    free(createdBuffer);
-
-}
-
-void tokenizeMetrics(char *buff) {
-    char * token;
-    int i = 0;
-    int errorFlag = 0;
-    char params[3][40];
-
-    token = strtok(buff," ");
-    printf("token:%s\n",token);
-    strcpy(params[i],token);
-    while((token = strtok(NULL," ")) != NULL) {
-        i++;
-        if(i > 2){
-            errorFlag = 1;
-            break;
-        }
-        printf("token:%s\n",token);
-        strcpy(params[i],token);
-    }
-    printf("%d\n",i);
-    if(errorFlag) {
-        printf("Too many arguments\n");
-    }
-    else { 
-        for(int j = 0 ; j<=i ; j++) {
-            printf("params[%d]=%s\n",j,params[j]);
-        }
-    }
-}
