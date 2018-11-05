@@ -7,7 +7,7 @@
 #include <ctype.h>
 #include "stack.h"
 #include "headerAndBodyUtils.h"
-#define LINE_LENGTH 1000
+#define COMPOSITE_MIMES 2
 #define HYPHENS 2
 #define CRLF 2
 #define BUF_BLOCK 100
@@ -26,10 +26,10 @@ char * compositeMimes[] = {
   "message/rfc822"
 };
 
-char * censoredMimes[] = {
+/*char * censoredMimes[] = {
   "application/x-desktop",
   "image/jajaja"
-};
+};*/
 char * cs[] = {"","NEW_LINE_CONTENT_TYPE","CR_MIME","MIME","SEPARATOR","COMMENT","BOUNDARY"};
 
 typedef enum {FALSE=0, TRUE} bool;

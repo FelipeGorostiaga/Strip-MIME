@@ -68,8 +68,12 @@ Stack boundaries = NULL; // stack containing non-censored multipart boundaries
 Buffer buffer = NULL; // universal buffer
 char * replacementBody = "This is the default replacement message. \
  Your message has been censored.";
+int relevantMimes = COMPOSITE_MIMES;
+char ** censoredMimes = NULL;
 
 int main(void) {
+  putenv("FILTER_MSG=Te censure");
+  putenv("FILTER_MEDIAS=image/jpeg");
   getEnvironmentVariables();
   boundaries = newStack();
   buffer = initializeBuffer();
@@ -81,8 +85,11 @@ int main(void) {
 
 static void getEnvironmentVariables() {
   replacementBody = getenv("FILTER_MSG");
-  char * Mimes = getenv("FILTER_MEDIAS");
-  //mimeStringToArray();
+  char * mimes = getenv("FILTER_MEDIAS");
+  //parseMimeList()
+  relevantMimes += 1;
+  censoredMimes = malloc((relevantMimes - COMPOSITE_MIMES) * sizeof(char *));
+  censoredMimes[0] = mimes;
 }
 
 static void freeResources(Level startingLevel, Buffer buffer, Stack boundaries/*, char ** Mimes*/) {
@@ -93,6 +100,13 @@ static void freeResources(Level startingLevel, Buffer buffer, Stack boundaries/*
   freeLevelResources(startingLevel);
   free(startingLevel);
   //freeMimes
+}
+
+static void freeMimes() {
+  int index;
+  for(index = 0; index < relevantMimes - COMPOSITE_MIMES; index++) {
+    free(mimes[index]);
+  }
 }
 
 Buffer initializeBuffer() {
@@ -128,7 +142,7 @@ Level initializeLevel() {
 static void resetLevel(Level level) {
   level->task = PARSING_HEADERS; // PARSING_HEADERS, DONE_PARSING_HEADERS, PARSING_BODY, DONE_PARSING_BODY
   level->taskStatus = NEW_LINE; // NEW_LINE, HEADER_NAME, HEADER_BODY, SEARCHING_BOUNDARY
-  level->headerParser = initializeHeaderParser();
+  level->headerParser = initializeHeaderParser(relevantMimes - COMPOSITE_MIMES);
   level->bodyParser = initializeBodyParser();
   
   level->isMultipart = FALSE;
@@ -191,6 +205,9 @@ static void startConsuming(Level current) {
         //manageLastHeadersWithEmptyBody();
       }
     }
+//char aux[400];
+//sprintf(aux, "Status: %d; i: %d; bytesRead: %d; doneReading: %d", current->task, buffer->i, buffer->bytesRead, buffer->doneReading);
+//write(STDOUT, aux, strlen(aux));
     for( ; buffer->i < buffer->bytesRead; buffer->i++) {
       switch(current->task) {
         case PARSING_HEADERS:             parseHeader(current, buffer->buffer[buffer->i]); // pushea boundary si es multipart
@@ -209,7 +226,7 @@ static void startConsuming(Level current) {
                                           current->task = PARSING_BODY;
                                           current->taskStatus = NEW_LINE_BODY;
                                           current->bodyParser->bufferStartingPoint = buffer->i;
-                                          resetHeaderParser(current->headerParser); // free all headers
+                                          resetHeaderParser(current->headerParser, relevantMimes - COMPOSITE_MIMES); // free all headers
                                           //printf("Index: %d, char: %c\n", buffer->i, buffer->buffer[buffer->i]);
                                           parseBody(current, buffer->buffer[buffer->i], peek(boundaries));
                                           break;
@@ -290,7 +307,7 @@ static void parseHeader(Level current, char c) {
                                     putHeaders(hp->relevantHeaders);
                                     if(hp->isRfc822Mime) {
                                       writeAndCheck(STDOUT, "\r\n", 2);
-                                      resetHeaderParser(hp);
+                                      resetHeaderParser(hp, relevantMimes - COMPOSITE_MIMES);
                                       current->task = PARSING_HEADERS;
                                       break;
                                     }
@@ -350,9 +367,9 @@ static void parseHeader(Level current, char c) {
                                 current->taskStatus = HEADER_BODY;
                                 break;
     case RELEVANT_HEADER_NAME:  ;
-//char aux[400] = {0};
-//    sprintf(aux, "Status: %s __Char:%c\n", hstat[current->taskStatus], c);
-//    write(STDOUT, aux, strlen(aux));
+// char aux[400] = {0};
+//     sprintf(aux, "Status: %s __Char:%c\n", hstat[current->taskStatus], c);
+//     write(STDOUT, aux, strlen(aux));
                                 if(c == '\r') {
                                   hp->lastTaskStatus = RELEVANT_HEADER_NAME;
                                   current->taskStatus = CR_HEADER;
@@ -430,15 +447,16 @@ static bool anyFinishedMatch(HeaderParser hp) {
 
 static void parseHeaderParams(Level current, char c) {
   HeaderParser hp = current->headerParser;
-//char aux[400] = {0};
-//sprintf(aux,"Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], c);
-//write(STDOUT, aux, strlen(aux));
+// char aux[400] = {0};
+// sprintf(aux,"Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], c);
+// write(STDOUT, aux, strlen(aux));
   switch(hp->ctp->contentTypeStatus) {
     case CR_MIME:                 if(c == '\n') {
                                     hp->ctp->contentTypeStatus = NEW_LINE_CONTENT_TYPE;
                                   }
                                   break;
     case MIME:                    ;//printf("Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], (c == '\r') ? '+' : c);
+    // write(STDOUT, "antes len ", strlen("antes len "));
                                   int len = hp->relevantHeaders[CONTENT_TYPE]->bodyLength - hp->ctp->wspAndNewLines;
                                   if((c == '\r' || c == ';')) {
                                     hp->ctp->wspAndNewLines += 2;
@@ -489,8 +507,13 @@ static void parseHeaderParams(Level current, char c) {
                                     hp->ctp->contentTypeStatus = SEPARATOR;
                                     break;
                                   }
+                    // write(STDOUT, "antes matching ", strlen("antes matching "));
+                    // char auxi[400] = {0};
+                    // sprintf(auxi, "ctp: %p , potentialRelevantMime: %p ", hp->ctp, hp->ctp->potentialRelevantMime);
+                    // write(STDOUT, auxi, strlen(auxi));
                                   int matching = checkIsRelevantMime(hp->ctp->potentialRelevantMime, 
                                     len, c);
+                    // write(STDOUT, "dsps matching ", strlen("dsps matching "));
                                   hp->ctp->potentialMultipart = checkCompositeMime(len, c, MULTIPART, 
                                     hp->ctp->potentialMultipart);
                                   hp->ctp->potentialRfc822 = checkCompositeMime(len, c, RFC822,
@@ -616,8 +639,16 @@ static bool checkIsRelevantHeader(Level current, char c) {
 static bool checkIsRelevantMime(char * potentialRelevantMime, int position, char c) {
   int index;
   bool ret = FALSE;
-  for(index = 0; index < RELEVANT_MIMES; index++) {
-    //printf("potentialRelevantMIME antes: %d, position: %d, char: %c\n",potentialRelevantMime[index], position, c);
+//char auxi[400];
+//sprintf(auxi, "El for lo del medio queda %d", relevantMimes - COMPOSITE_MIMES);
+//write(STDOUT, auxi, strlen(auxi));
+  for(index = 0; index < relevantMimes - COMPOSITE_MIMES; index++) {
+   char aux[400] = {0};
+//sprintf(aux, "potentialRelevantMIME antes: %d, position: %d, char: %c\n",potentialRelevantMime[index], position, c);
+//write(STDOUT, aux, strlen(aux));
+//printf("potentialRelevantMIME antes: %d, position: %d, char: %c\n",potentialRelevantMime[index], position, c);
+//sprintf(aux, "En isRelevantMime con potentialRelevantMime[index] %c; %s %d vs %d, %c vs %c\n", potentialRelevantMime[index] + '0', censoredMimes[index], position, strlen(censoredMimes[index]), c, censoredMimes[index][position]);
+//write(STDOUT, aux, strlen(aux));
     if(potentialRelevantMime[index] == TRUE) {
       potentialRelevantMime[index] = cmpMime(censoredMimes[index], position, c);
     }
@@ -629,7 +660,6 @@ static bool checkIsRelevantMime(char * potentialRelevantMime, int position, char
 }
 
 static bool checkCompositeMime(int position, char c, int compositeMime, char potential) {
-  //printf("Chequeando Multipart %c vs %c, potential: %c\n", c, compositeMimes[compositeMime][position], potential + '0');
   if(potential == TRUE) {
     return cmpMime(compositeMimes[compositeMime], position, c);//tolower(c) == compositeMimes[compositeMime][position];
   }
@@ -638,7 +668,9 @@ static bool checkCompositeMime(int position, char c, int compositeMime, char pot
 
 static bool cmpMime(const char * str, int position, char c) {
   int len = strlen(str);
-  //printf("En cmpMime %s %d vs %d, %c vs %c\n", str, position, strlen(str), c, str[position]);
+///char aux[400] = {0};
+//sprintf(aux, "En cmpMime %s %d vs %d, %c vs %c\n", str, position, strlen(str), c, str[position]);
+//write(STDOUT, aux, strlen(aux));
   if(position >= len - 1 && str[len - 1] == '*') {
     //printf("Me dio *************************** %c\n", c);
     return TRUE;
@@ -652,7 +684,7 @@ static bool cmpMime(const char * str, int position, char c) {
 
 static bool anyCensoredMatches(const char * potentialRelevantMime, int position) {
   int index;
-  for(index = 0; index < RELEVANT_MIMES; index++) {
+  for(index = 0; index < relevantMimes - COMPOSITE_MIMES; index++) {
     //printf("anyCensoredMatches %s, position: %d\n", censoredMimes[index], position);
     if(potentialRelevantMime[index] == TRUE && cmpMime(censoredMimes[index], position, '\0'))
       return TRUE;
@@ -801,7 +833,7 @@ void resetLevelValues(Level level) {
   level->taskStatus = NEW_LINE;
   level->isMultipart = FALSE;
   level->mustBeCensored = FALSE;
-  resetHeaderParser(level->headerParser);
+  resetHeaderParser(level->headerParser, relevantMimes - COMPOSITE_MIMES);
 }
 
 int caseInsensitiveStrncmp(const char * s1, const char * s2, size_t n) {

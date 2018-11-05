@@ -2,15 +2,16 @@
 #define STDOUT 1
 
 static void setToTrue(char * arr, int size);
+static void setPotentialRelevantMimesToTrue(ContentTypeParser ctp, int relevantMimes);
 
-HeaderParser initializeHeaderParser() {
+HeaderParser initializeHeaderParser(int relevantMimes) {
   HeaderParser hp = malloc(sizeof(HeaderParserCDT));
   hp->relevantHeaders = NULL;
   hp->potentialRelevantHeader = NULL;
   hp->hbuf = NULL;
   hp->nextBoundary = NULL;
   hp->ctp = NULL;
-  resetHeaderParser(hp);
+  resetHeaderParser(hp, relevantMimes);
   return hp;
 }
 
@@ -28,7 +29,7 @@ void freeHeaderParser(HeaderParser hp) {
     free(hp->nextBoundary->bnd);
     free(hp->nextBoundary);
   }
-  //free(hp->ctp->potentialRelevantMime);
+  free(hp->ctp->potentialRelevantMime);
   free(hp->ctp);
 }
 
@@ -45,7 +46,7 @@ Header initializeHeader() {
   return h;
 }
 
-void resetHeaderParser(HeaderParser hp) {
+void resetHeaderParser(HeaderParser hp, int relevantMimes) {
   if(hp->relevantHeaders == NULL)
     hp->relevantHeaders = calloc(RELEVANT_HEADERS, sizeof(Header));
   if(hp->potentialRelevantHeader == NULL)
@@ -58,16 +59,22 @@ void resetHeaderParser(HeaderParser hp) {
   hp->nextBoundary = malloc(sizeof(Boundary));
   hp->nextBoundary->bnd = malloc(HBUF_BLOCK);
   hp->nextBoundary->length = 0; // valgrind invalid read size 4
-//char arr[400] = {0};
-//sprintf(arr, "Puntero del boundary: %p\n", hp->nextBoundary);
-//write(STDOUT, arr, strlen(arr));
-  if(hp->ctp == NULL)
+  if(hp->ctp == NULL) {
     hp->ctp = malloc(sizeof(ContentTypeParserCDT));
-  int index;
-  for(index = 0; index < RELEVANT_MIMES; index++)
-    hp->ctp->potentialRelevantMime[index] = 1;
+    hp->ctp->potentialRelevantMime = NULL;
+  }
+  if(hp->ctp->potentialRelevantMime == NULL) {
+    hp->ctp->potentialRelevantMime = malloc(relevantMimes * sizeof(char));
+  }
+  setPotentialRelevantMimesToTrue(hp->ctp, relevantMimes);
   hp->ctp->boundaryNameIndex = hp->ctp->doubleQuoteCount = hp->ctp->wspAndNewLines = 0;
   hp->ctp->potentialMultipart = hp->ctp->potentialRfc822 = 1;
+}
+
+static void setPotentialRelevantMimesToTrue(ContentTypeParser ctp, int relevantMimes) {
+  int index;
+  for(index = 0; index < relevantMimes; index++)
+    ctp->potentialRelevantMime[index] = 1;
 }
 
 static void setToTrue(char * arr, int size) {
@@ -88,16 +95,6 @@ void putHeaders(Header * headers) {
       printHeader(headers[index]);
   }
 }
-
-/*int findMatchingRelevantHeader(HeaderParser hp) {
-	int index;
-	for(index = 0; index < RELEVANT_HEADERS; index++) {
-		if(hp->potentialRelevantHeader[index] == 1
-			&& hp->hbufIndex == strlen(relevantHeaderNames[index]) + 1)
-			return index;
-	}
-	return -1;
-}*/
 
 int matchesFound(HeaderParser hp) {
 	char * arr = hp->potentialRelevantHeader;

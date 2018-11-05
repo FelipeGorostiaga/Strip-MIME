@@ -2,7 +2,6 @@
 #include <string.h>
 #include <unistd.h>
 #define ALREADY_FOUND 2
-#define RELEVANT_MIMES 4
 #define RELEVANT_HEADERS 4
 #define HNAME_BLOCK 50
 #define HBODY_BLOCK 100
@@ -28,7 +27,7 @@ typedef struct ContentTypeParserCDT {
   int contentTypeStatus;
   int previousContentTypeStatus;
 
-  char potentialRelevantMime[4];
+  char * potentialRelevantMime;
   char potentialMultipart;
   char potentialRfc822;
   int doubleQuoteCount;
@@ -49,7 +48,7 @@ typedef struct HeaderParserCDT {
 
   ContentTypeParser ctp;
 } HeaderParserCDT;
-HeaderParser initializeHeaderParser();
+HeaderParser initializeHeaderParser(int relevantMimes);
 
 typedef struct BodyParserCDT * BodyParser;
 typedef struct BodyParserCDT {
@@ -73,7 +72,7 @@ typedef enum {NEW_LINE_BODY=1, CR_BODY, HYPHEN, IRRELEVANT_BODY, SEARCHING_HYPHE
   SEARCHING_BOUNDARY, BOUNDARY_POP_CHECK, WRITING_NO_CHECK} bodyStatus;
 
 Header initializeHeader();
-void resetHeaderParser(HeaderParser hp);
+void resetHeaderParser(HeaderParser hp, int relevantMimes);
 void resetBodyParser(BodyParser bp);
 void resetBodyParserSameStartingPoint(BodyParser bp);
 void freeHeaderContents(Header header);
