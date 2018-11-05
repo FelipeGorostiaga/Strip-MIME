@@ -16,7 +16,7 @@ Configuration newConfiguration() {
     newConf->pop3dir.s_addr         = INADDR_ANY;
     newConf->pop3dirFamily          = AF_INET;
     newConf->replaceMessage         = "Parte reemplazda.";
-    newConf->censurableMediaTypes   = "";
+    newConf->censurableMediaTypes   = "text/plain";
     newConf->managementPort         = (uint16_t)9090;
     newConf->localPort              = (uint16_t)1110;
     newConf->originPort             = (uint16_t)110;

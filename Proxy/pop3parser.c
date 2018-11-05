@@ -8,11 +8,13 @@
 #include <ctype.h>
 #include <signal.h>
 #include <errno.h>
+#include <fcntl.h>
 #include "pop3parser.h"
 
 
 static int clientFd, originServer, pipeliningSupported, requestsNum, responsesNum, filteredResponses;
-static int pipeFds[2];
+static int parentInputPipeFds[2];
+static int parentOutputPipeFds[2];
 static char ** envVars;
 struct attendReturningFields rf;
 
@@ -23,6 +25,7 @@ struct attendReturningFields attendClient(int clientSockFd, int originServerSock
     envVars = envVariables;
     clientFd = clientSockFd;
     originServer = originServerSock;
+    startFilter();
     pipeliningSupported = pipeliningSupport(originServer);
     if(pipeliningSupported) {
         pipeliningMode();
@@ -173,7 +176,7 @@ int readFromOrigin() {
     }
     responsesNum += countResponses(buffer,bytesRead);
     rf.bytesTransferred += bytesRead;
-    write(pipeFds[1],buffer,(size_t)bytesRead);
+    write(parentOutputPipeFds[1],buffer,(size_t)bytesRead);
     if(responsesNum == requestsNum) {
         return TRUE;
     }
@@ -184,15 +187,22 @@ int readFromFilter() {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
 
-    if ((bytesRead = read(pipeFds[0], buffer, BUFF_SIZE)) == -1) {
+    if ((bytesRead = read(parentInputPipeFds[0], buffer, BUFF_SIZE)) == -1) {
         if(errno == EWOULDBLOCK) {
-            if(filteredResponses == requestsNum) { return TRUE; }
+            if(filteredResponses == requestsNum) {
+                close(parentOutputPipeFds[0]);
+                close(parentOutputPipeFds[1]);
+                close(parentInputPipeFds[0]);
+                close(parentInputPipeFds[1]);
+                return TRUE;
+            }
             return FALSE;
         }
         fprintf(stderr, "Error reading from filter\n");
         exit(EXIT_FAILURE);
     }
     buffer[bytesRead] = 0;
+    printf("LEI DEL FILTRO: %s\n", buffer);
     filteredResponses += countResponses(buffer,bytesRead);
     write(clientFd,buffer,(size_t)bytesRead);
     if(filteredResponses == requestsNum) {
@@ -207,16 +217,23 @@ void startFilter() {
     int i;
     char *argv[] = {"./stripmime", 0};
 
+    int ret1 = pipe(parentInputPipeFds);
+    int ret2 = pipe(parentOutputPipeFds);
+
     if(fork() == 0) {
         for(i = 0; i < 5; i++) {
             putenv(envVars[i]);
         }
-        dup2(pipeFds[1],STDIN_FILENO);
-        dup2(pipeFds[0],STDOUT_FILENO);
+        dup2(parentOutputPipeFds[0],STDIN_FILENO);
+        dup2(parentInputPipeFds[1],STDOUT_FILENO);
         execvp(argv[0],argv);
     }
     else {
-        if(pipe(pipeFds) == -1) {
+        if(ret1 == -1) {
+            fprintf(stderr,"Error opening pipes to filter");
+            exit(EXIT_FAILURE);
+        }
+        if(ret2 == -1) {
             fprintf(stderr,"Error opening pipes to filter");
             exit(EXIT_FAILURE);
         }
