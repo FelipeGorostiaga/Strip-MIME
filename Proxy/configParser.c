@@ -19,8 +19,11 @@ int parseConfig(int socket, Configuration config) {
     printf("opcode: %c\n",opCode);
     do {
         bytesRead = readSocket(socket,&aux,1);
+        if(bytesRead == 0) {
+            close(socket);
+            return CLOSED_SOCKET;
+        }
         printf("length: %d\n",aux);
-        if(bytesRead == 0) { break; }
         contentSize += aux;
     } while(aux == MAX_CONTENT_LEN);
     buffer = realloc(buffer,(contentSize+1)* sizeof(uint8_t));

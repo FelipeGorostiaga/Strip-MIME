@@ -46,6 +46,10 @@ void pipeliningMode() {
             return;
         }
     }
+    if(requestsNum == 0) {
+        fprintf(stdout,"Invalid POP3 command format, no \\r or \\n detected \n");
+        return;
+    }
     originClosed = writeAndReadFilter();
     if(originClosed == QUIT) {
         rf.closeConnectionFlag = TRUE;
@@ -127,11 +131,13 @@ int readFromClient() {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
     size_t i;
-    int cmdStart = 0;
 
     if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
         if(errno == EWOULDBLOCK) {
-            return TRUE;
+            if(requestsNum >= 1) {
+                return TRUE;
+            }
+            return FALSE;
         }
         fprintf(stderr,"Error reading from client\n");
         exit(EXIT_FAILURE);
@@ -139,19 +145,15 @@ int readFromClient() {
     if(bytesRead == 0) {
         return QUIT;
     }
+    write(originServer,buffer,(size_t)bytesRead);
     logAccess(buffer,0);
     rf.bytesTransferred += bytesRead;
     for(i = 0; i < bytesRead; i++) {
         if(buffer[i] == '\n') {
             requestsNum += 1;
-            if(cleanAndSend(buffer,cmdStart,(int)i) == QUIT) {
-                return QUIT;
-            }
             logAccess(buffer,i+1);
-            cmdStart = (int)i+1;
         }
     }
-    buffer[bytesRead] = 0;
     return FALSE;
 }
 
@@ -160,6 +162,9 @@ int readFromOrigin() {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
     if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
+        if(errno == EWOULDBLOCK) {
+            return TRUE;
+        }
         fprintf(stderr, "Error reading from origin\n");
         exit(EXIT_FAILURE);
     }
