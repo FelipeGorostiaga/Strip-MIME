@@ -173,8 +173,8 @@ Level initializeLevel() {
 }
 
 static void resetLevel(Level level) {
-  level->task = PARSING_HEADERS; // PARSING_HEADERS, DONE_PARSING_HEADERS, PARSING_BODY, DONE_PARSING_BODY
-  level->taskStatus = NEW_LINE; // NEW_LINE, HEADER_NAME, HEADER_BODY, SEARCHING_BOUNDARY
+  level->task = PARSING_POP3; // PARSING_HEADERS, DONE_PARSING_HEADERS, PARSING_BODY, DONE_PARSING_BODY
+  level->taskStatus = NEW_LINE_POP3; // NEW_LINE, HEADER_NAME, HEADER_BODY, SEARCHING_BOUNDARY
   level->headerParser = initializeHeaderParser(relevantMimes - COMPOSITE_MIMES);
   level->bodyParser = initializeBodyParser();
   

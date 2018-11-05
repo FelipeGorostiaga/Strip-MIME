@@ -215,7 +215,7 @@ int readFromFilter() {
 
 void startFilter() {
     int i;
-    char *argv[] = {"./stripmime", 0};
+    char *argv[] = {"cat", 0};
 
     int ret1 = pipe(parentInputPipeFds);
     int ret2 = pipe(parentOutputPipeFds);
