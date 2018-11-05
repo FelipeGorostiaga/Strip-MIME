@@ -56,8 +56,11 @@ int findPipelining(char * str, ssize_t size);
 /*Writes current command in logs*/
 void logAccess(char * buffer, size_t cmdStart);
 
+/*Counts the number of closed responses in each buffer read*/
 int countResponses(char * buf, ssize_t size);
 
+/*Cleans unwanted noise and sends command to server*/
 int cleanAndSend(const char * buffer, int cmdStart, int cmdEnd);
 
+/*Writes responses in stdout*/
 void logResponse(char * buffer);

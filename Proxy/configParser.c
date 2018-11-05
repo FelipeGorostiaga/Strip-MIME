@@ -29,6 +29,7 @@ int parseConfig(int socket, Configuration config) {
     printf("content: %s\n",buffer);
     buffer[contentSize] = 0;
     editConfiguration(config,opCode,(char *)buffer, socket, contentSize);
+    free(buffer);
     free(metrics);
     return SUCCESS;
 }
