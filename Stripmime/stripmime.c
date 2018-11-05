@@ -4,7 +4,7 @@ static void getEnvironmentVariables();
 static void splitMimes(char * mimes);
 static void startConsuming(Level current);
 static void feedMoreBytes(Buffer buffer);
-static void consumeRemainingBytes();
+//static void consumeRemainingBytes();
 static void emptyBoundaries(Stack stack);
 static void resetLevel(Level level);
 static void freeResources(Level startingLevel, Buffer buffer, Stack boundaries);
@@ -27,6 +27,7 @@ static bool checkCompositeMime(int position, char c, int compositeMime, char pot
 static bool anyCensoredMatches(const char * potentialRelevantMime, int position);
 static bool isComposite(char, int, int);
 static void addCharToBoundary(HeaderParser hp, char c);
+static void parsePop3(Level current, char c);
 void resetLevelValues(Level);
 
 char * hstat[] =  {"","NEW_LINE","CR_HEADER","RELEVANT_HEADER_NAME",
@@ -72,6 +73,8 @@ char * replacementBody = "This is the default replacement message. \
  Your message has been censored.";
 int relevantMimes = COMPOSITE_MIMES;
 char ** censoredMimes = NULL;
+
+int pop3StartingPoint = 0;
 
 int main(void) {
   putenv("FILTER_MSG=Te censure");
@@ -197,7 +200,7 @@ static void feedMoreBytes(Buffer buffer) {
     endWithFailure(errorMessages[READ_FAILURE]);
 }
 
-static void consumeRemainingBytes(Level current) {
+/*static void consumeRemainingBytes(Level current) {
   if(!current->mustBeCensored) {
    //printf("Tengo que imprimir lo que queda\n");
     int startingPoint = current->bodyParser->bufferStartingPoint;
@@ -217,11 +220,15 @@ static void consumeRemainingBytes(Level current) {
     writeAndCheck(STDOUT, "\r\n.\r\n", 5);
   }
   return;
-}
+}*/
 
 static void startConsuming(Level current) {
   while(!buffer->doneReading) {
     if(buffer->i == buffer->bytesRead) {
+      if(current->task == PARSING_POP3) {
+        writeAndCheck(STDOUT, buffer->buffer + pop3StartingPoint, buffer->i - pop3StartingPoint);
+        pop3StartingPoint = 0;
+      }
       if(!current->mustBeCensored && (current->task == PARSING_BODY 
         || current->task == DONE_PARSING_BODY || current->task == DONE_FINAL_BODY)) {
         int startingPoint = current->bodyParser->bufferStartingPoint;
@@ -231,8 +238,9 @@ static void startConsuming(Level current) {
       current->bodyParser->bufferStartingPoint = 0;
       if(current->task != DONE_FINAL_BODY)
         feedMoreBytes(buffer); // reads more bytes, overwriting old buffer and setting i = 0
-      if(current->task == PARSING_HEADERS && buffer->doneReading) {
-        //manageLastHeadersWithEmptyBody();
+      if(current->task == PARSING_HEADERS 
+        && buffer->doneReading && buffer->i == buffer->bytesRead) {
+        write(STDOUT, current->headerParser->hbuf, current->headerParser->hbufIndex + 1);
       }
     }
 //char aux[400];
@@ -240,6 +248,8 @@ static void startConsuming(Level current) {
 //write(STDOUT, aux, strlen(aux));
     for( ; buffer->i < buffer->bytesRead; buffer->i++) {
       switch(current->task) {
+        case PARSING_POP3:                parsePop3(current, buffer->buffer[buffer->i]);
+                                          break;
         case PARSING_HEADERS:             parseHeader(current, buffer->buffer[buffer->i]); // pushea boundary si es multipart
                                           break;
         case DONE_PARSING_HEADERS:        if(current->isMultipart && !current->mustBeCensored) {
@@ -288,6 +298,34 @@ static void startConsuming(Level current) {
   }
   
   return;
+}
+
+static void parsePop3(Level current, char c) {
+  switch(current->taskStatus) {
+    case NEW_LINE_POP3:           if(c == '+' || c == '-') {
+                                    current->taskStatus = COMMAND_POP3;
+                                    //addCharToPop3Command(c);
+                                  }
+                                  else {
+                                    current->task = PARSING_HEADERS;
+                                    current->taskStatus = NEW_LINE;
+                                    writeAndCheck(STDOUT, buffer->buffer + pop3StartingPoint,
+                                      buffer->i - pop3StartingPoint);
+                                    parseHeader(current, c);
+                                    return;
+                                  }
+                                  break;
+    case CR_POP3:                 if(c == '\n') {
+                                    current->taskStatus = NEW_LINE_POP3;
+                                  }
+                                  //addCharToPop3Command(c);
+                                  break;
+    case COMMAND_POP3:            if(c == '\r') {
+                                    current->taskStatus = CR_POP3;
+                                  }
+                                  //addCharToPop3Command(c);
+                                  break;
+  }
 }
 
 static void writeBoundary(bool isFinalPart, Boundary currentBoundary) {
@@ -759,7 +797,7 @@ static void injectReplacementHeaderAndBody() {
 // two CRLFs preceding the encapsulation line, the first of which is part of the 
 // preceding body part, and the second of which is part of the encapsulation boundary.
 static void parseBody(Level current, char c, Boundary boundary) {
-  if(boundary == NULL) {
+  /*if(boundary == NULL) {
     if(buffer->i == buffer->bytesRead - 1
       || (current->mustBeCensored && buffer->i == buffer->bytesRead - 1)) {
       current->task = DONE_FINAL_BODY;
@@ -772,7 +810,7 @@ static void parseBody(Level current, char c, Boundary boundary) {
       return;
     }
     return;
-  }
+  }*/
   //char aux[4000] = {0};
   //sprintf(aux, "%s; Char: %c\n", bodyStatusNames[current->taskStatus], c);
   //write(STDOUT, aux, strlen(aux));

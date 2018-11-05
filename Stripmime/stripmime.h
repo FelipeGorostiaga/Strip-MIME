@@ -55,6 +55,8 @@ char * errorMessages[] = {
   "Could not write to STDOUT."
 };
 
+typedef enum {NEW_LINE_POP3=1,CR_POP3,COMMAND_POP3} pop3StatusCodes;
+
 typedef struct LevelCDT * Level;
 typedef struct LevelCDT {
   int task; // tarea de mi maquina de estados de startConsuming
