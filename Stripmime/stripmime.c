@@ -1,6 +1,7 @@
 #include "stripmime.h"
 
 static void getEnvironmentVariables();
+static void splitMimes(char * mimes);
 static void startConsuming(Level current);
 static void feedMoreBytes(Buffer buffer);
 static void consumeRemainingBytes();
@@ -8,6 +9,7 @@ static void emptyBoundaries(Stack stack);
 static void resetLevel(Level level);
 static void freeResources(Level startingLevel, Buffer buffer, Stack boundaries);
 static void freeLevelResources(Level level);
+static void freeMimes();
 static void parseHeader(Level current, char c);
 static void parseHeaderParams(Level current, char c);
 static void injectReplacementHeaderAndBody();
@@ -73,7 +75,7 @@ char ** censoredMimes = NULL;
 
 int main(void) {
   putenv("FILTER_MSG=Te censure");
-  putenv("FILTER_MEDIAS=image/jpeg");
+  putenv("FILTER_MEDIAS=image/jpeg,image/png");
   getEnvironmentVariables();
   boundaries = newStack();
   buffer = initializeBuffer();
@@ -84,12 +86,40 @@ int main(void) {
 }
 
 static void getEnvironmentVariables() {
-  replacementBody = getenv("FILTER_MSG");
+  censoredMimes = malloc(sizeof(char *));
+  censoredMimes[0] = NULL;
+  char * msg = getenv("FILTER_MSG");
+  if(msg != NULL)
+    replacementBody = msg;
   char * mimes = getenv("FILTER_MEDIAS");
-  //parseMimeList()
-  relevantMimes += 1;
-  censoredMimes = malloc((relevantMimes - COMPOSITE_MIMES) * sizeof(char *));
-  censoredMimes[0] = mimes;
+  splitMimes(mimes);
+}
+
+static void splitMimes(char * mimes) {
+  if(mimes == NULL)
+    return;
+  int index, charCount = 0;
+  for(index = 0; mimes[index] != '\0'; index++) {
+    int count = relevantMimes - COMPOSITE_MIMES;
+    if(charCount == 0) {
+      censoredMimes[count] = realloc(censoredMimes[count], charCount + MIME_BLOCK);
+    }
+    if(mimes[index] == ',') {
+      censoredMimes[count][charCount++] = '\0';
+      charCount = 0;
+     //write(STDOUT, censoredMimes[count], strlen(censoredMimes[count]));
+      censoredMimes = realloc(censoredMimes, (count + 1) * sizeof(char *));
+      relevantMimes++;
+      censoredMimes[relevantMimes - COMPOSITE_MIMES] = NULL;
+    }
+    else if(!isspace(mimes[index])) {
+      censoredMimes[count][charCount++] = mimes[index];
+    }
+  }
+  int count = relevantMimes - COMPOSITE_MIMES;
+  if(charCount % MIME_BLOCK == 0)
+    censoredMimes[count] = realloc(censoredMimes[count], index + MIME_BLOCK);
+  censoredMimes[count][charCount] = '\0';
 }
 
 static void freeResources(Level startingLevel, Buffer buffer, Stack boundaries/*, char ** Mimes*/) {
@@ -99,13 +129,13 @@ static void freeResources(Level startingLevel, Buffer buffer, Stack boundaries/*
   free(boundaries);
   freeLevelResources(startingLevel);
   free(startingLevel);
-  //freeMimes
+  freeMimes();
 }
 
 static void freeMimes() {
   int index;
   for(index = 0; index < relevantMimes - COMPOSITE_MIMES; index++) {
-    free(mimes[index]);
+    free(censoredMimes[index]);
   }
 }
 
@@ -535,6 +565,7 @@ static void parseHeaderParams(Level current, char c) {
                                   if(c == '(') {
                                     hp->ctp->previousContentTypeStatus = SEPARATOR;
                                     hp->ctp->contentTypeStatus = COMMENT;
+                                    //hp->ctp->wspAndNewLines++;
                                     break;
                                   }
                                   if(isspace(c))
@@ -550,11 +581,13 @@ static void parseHeaderParams(Level current, char c) {
                                     break;
                                   }
                                   break;
-    case COMMENT:                 printf("Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], c);
+    case COMMENT:                 //printf("Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], c);
                                   if(c == ')') {
+                                    //hp->ctp->wspAndNewLines++;
                                     hp->ctp->contentTypeStatus = hp->ctp->previousContentTypeStatus;
                                     break;
                                   }
+                                  //hp->ctp->wspAndNewLines++;
                                   break;
     case BOUNDARY:                //printf("Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], c);
                                   if(c == '\r' && (hp->ctp->doubleQuoteCount == 0 
@@ -570,6 +603,7 @@ static void parseHeaderParams(Level current, char c) {
                                   if(c == '(') {
                                     hp->ctp->previousContentTypeStatus = SEPARATOR;
                                     hp->ctp->contentTypeStatus = COMMENT;
+                                    //hp->ctp->wspAndNewLines++;
                                     break;
                                   }
                                   else if(c == '\r' || c == '\n') { // boundary="simpl

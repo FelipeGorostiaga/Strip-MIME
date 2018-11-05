@@ -6,6 +6,7 @@
 #define HNAME_BLOCK 50
 #define HBODY_BLOCK 100
 #define HBUF_BLOCK 100
+#define MIME_BLOCK 25
 #define HUTILS 0
 
 typedef struct HeaderCDT * Header;
