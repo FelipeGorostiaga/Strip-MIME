@@ -24,7 +24,6 @@ int main(int argc, char * argv []) {
     genericOriginServer = socketToOriginServer(getOriginServer(config));
     firstReadToGeneric();
     makeNonBlocking(genericOriginServer);
-    startFilter();
     selectLoop();
     return 0;
 }

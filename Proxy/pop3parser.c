@@ -8,11 +8,13 @@
 #include <ctype.h>
 #include <signal.h>
 #include <errno.h>
+#include <fcntl.h>
 #include "pop3parser.h"
 
 
 static int clientFd, originServer, pipeliningSupported, requestsNum, responsesNum, filteredResponses;
-static int pipeFds[2];
+static int parentInputPipeFds[2];
+static int parentOutputPipeFds[2];
 static char ** envVars;
 struct attendReturningFields rf;
 
@@ -23,6 +25,7 @@ struct attendReturningFields attendClient(int clientSockFd, int originServerSock
     envVars = envVariables;
     clientFd = clientSockFd;
     originServer = originServerSock;
+    startFilter();
     pipeliningSupported = pipeliningSupport(originServer);
     if(pipeliningSupported) {
         pipeliningMode();
@@ -173,7 +176,7 @@ int readFromOrigin() {
     }
     responsesNum += countResponses(buffer,bytesRead);
     rf.bytesTransferred += bytesRead;
-    write(pipeFds[1],buffer,(size_t)bytesRead);
+    write(parentOutputPipeFds[1],buffer,(size_t)bytesRead);
     if(responsesNum == requestsNum) {
         return TRUE;
     }
@@ -184,7 +187,7 @@ int readFromFilter() {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
 
-    if ((bytesRead = read(pipeFds[0], buffer, BUFF_SIZE)) == -1) {
+    if ((bytesRead = read(parentInputPipeFds[0], buffer, BUFF_SIZE)) == -1) {
         if(errno == EWOULDBLOCK) {
             if(filteredResponses == requestsNum) { return TRUE; }
             return FALSE;
@@ -205,18 +208,26 @@ int readFromFilter() {
 
 void startFilter() {
     int i;
-    char *argv[] = {"./stripmime", 0};
+    char *argv[] = {"cat", 0};
 
+    int ret1 = pipe(parentInputPipeFds);
+    int ret2 = pipe(parentOutputPipeFds);
+
+    printf("LLegueeee!\n");
     if(fork() == 0) {
         for(i = 0; i < 5; i++) {
             putenv(envVars[i]);
         }
-        dup2(pipeFds[1],STDIN_FILENO);
-        dup2(pipeFds[0],STDOUT_FILENO);
+        dup2(parentOutputPipeFds[0],STDIN_FILENO);
+        dup2(parentInputPipeFds[1],STDOUT_FILENO);
         execvp(argv[0],argv);
     }
     else {
-        if(pipe(pipeFds) == -1) {
+        if(ret1 == -1) {
+            fprintf(stderr,"Error opening pipes to filter");
+            exit(EXIT_FAILURE);
+        }
+        if(ret2 == -1) {
             fprintf(stderr,"Error opening pipes to filter");
             exit(EXIT_FAILURE);
         }
