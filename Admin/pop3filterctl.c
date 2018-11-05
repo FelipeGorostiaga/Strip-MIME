@@ -240,7 +240,6 @@ void getProxyVersion(int cmd, int socket) {
 }
  
 void parseMetrics(char * response,int count) {
-    uint8_t size;
     char * metric;
     char * metricValue;
 

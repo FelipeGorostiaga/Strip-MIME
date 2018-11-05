@@ -754,10 +754,7 @@ static void parseBody(Level current, char c, Boundary boundary) {
                                         break;
                                       }
                                       break;
-    case BOUNDARY_POP_CHECK:          
-if(c != '-')
-    //write(STDOUT, "BOUNDARY POP CHECK\n", strlen("BOUNDARY POP CHECK\n"));
-                                      if(c == '\r') {
+    case BOUNDARY_POP_CHECK:          if(c == '\r') {
                                         current->task = DONE_PARSING_BODY;
                                         //return;
                                       }

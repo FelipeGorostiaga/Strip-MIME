@@ -200,7 +200,7 @@ int readFromFilter() {
 
 void startFilter() {
     int i;
-    char *argv[] = {"cat", 0};
+    char *argv[] = {"./stripmime", 0};
 
     if(fork() == 0) {
         for(i = 0; i < 5; i++) {
