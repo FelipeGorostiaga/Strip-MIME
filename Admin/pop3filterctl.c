@@ -186,7 +186,7 @@ int readCommands(int socket) {
                 else {
                     if(c == 'h')state = HELP;
                     else if(c ==  'v') state = VERSION;
-                    else if(c == 't' || c == 'e' || c == 'f' || c == 'm' || c == 'z' ) {
+                    else if(c == 't' || c == 'e' || c == 'f' || c == 'm' || c == 'z' || c == 'M') {
                         state = LETTER;
                         cmd = c;
                     }
@@ -310,7 +310,12 @@ void readResponse(char * response, int cmd) {
         successMessage(cmd);
     }
     else if (strcmp(response,"ERROR") == 0) {
-        printErrorMessage(6);
+        if(cmd == 'M') {
+            printErrorMessage(9);
+        }
+        else {
+            printErrorMessage(6);
+        }
     }
     else {
         printErrorMessage(5);
@@ -487,6 +492,7 @@ void printHelp() {
     printf("-e <errorfilename> Redirect stderr to errorfilename \n");
     printf("-m <message> change default replace message\n");
     printf("-v Get proxy server version\n");
+    printf("-M <mimes> select mimes to strip from mails\n");
     printf("-z BYTES CON_CON TOT_CON TIME Get specified metrics, no parameters will get all metrics\n");   
     printf("-q Exit \n");
 }
@@ -510,6 +516,7 @@ void printErrorMessage(int errorCode) {
         case 7: printf("Invalid metric parameters, please try again...\n");break;
         case 8: printf("Error, couldn't read from server.\n");break;
         case 9: printf("Invalid metric values from server.\n");break;
+        case 10: printf("Error, invalid mime\n");break;
         default: break;
     }
 }
@@ -520,6 +527,7 @@ void successMessage(int cmd) {
         case 't': printf("Successfully updated command\n");break;
         case 'e': printf("Successfully updated error file redirect\n");break;
         case 'f': printf("Successfully updated metrics file redirect\n");break;
+        case 'M': printf("Succesfullly updated MIMES\n");break;
         default: break;
     }
 
