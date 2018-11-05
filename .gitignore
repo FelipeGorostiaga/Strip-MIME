@@ -5,5 +5,10 @@ cmake-build-debug
 Proxy/pop3filter
 match
 
+Admin/main
+Admin/pop3filterctl
 Proxy/pop3filter
 Stripmime/stripmime
+pop3filter
+pop3filterctl
+stripmime
