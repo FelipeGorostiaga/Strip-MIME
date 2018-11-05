@@ -1,4 +1,4 @@
-#include "main.h"
+#include "pop3filterctl.h"
 
 int main(int argc, char * argv []) {
     int socket;

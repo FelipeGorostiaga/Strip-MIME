@@ -6,3 +6,4 @@ Proxy/pop3filter
 match
 
 Proxy/pop3filter
+Stripmime/stripmime
