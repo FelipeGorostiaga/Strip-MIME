@@ -1,5 +1,6 @@
 #include "stripmime.h"
 
+static void getEnvironmentVariables();
 static void startConsuming(Level current);
 static void feedMoreBytes(Buffer buffer);
 static void consumeRemainingBytes();
@@ -69,12 +70,19 @@ char * replacementBody = "This is the default replacement message. \
  Your message has been censored.";
 
 int main(void) {
+  getEnvironmentVariables();
   boundaries = newStack();
   buffer = initializeBuffer();
   Level startingLevel = initializeLevel();
   startConsuming(startingLevel);
   freeResources(startingLevel, buffer, boundaries);
   return SUCCESS;
+}
+
+static void getEnvironmentVariables() {
+  replacementBody = getenv("FILTER_MSG");
+  char * Mimes = getenv("FILTER_MEDIAS");
+  //mimeStringToArray();
 }
 
 static void freeResources(Level startingLevel, Buffer buffer, Stack boundaries/*, char ** Mimes*/) {

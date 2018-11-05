@@ -187,7 +187,7 @@ uint16_t strToUint16(const char * str) {
     char * end;
     errno = 0;
     intmax_t val = strtoimax(str, &end, 10);
-    if (errno == ERANGE || val < 0 || val > UINT16_MAX || end == str || *end != '\0') {
+    if (errno == 34 || val < 0 || val > UINT16_MAX || end == str || *end != '\0') {
         return 0;
     }
     res = (uint16_t) val;
