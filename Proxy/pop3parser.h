@@ -8,7 +8,7 @@
 
 #define TRUE 1
 #define FALSE 0
-#define BUFF_SIZE 256
+#define BUFF_SIZE 2
 #define BUFFER_END 15
 #define NOT_SUPPORTED (-1)
 #define CONTINUE 0
@@ -56,7 +56,8 @@ int findPipelining(char * str, ssize_t size);
 /*Writes current command in logs*/
 void logAccess(char * buffer, size_t cmdStart);
 
-
 int countResponses(char * buf, ssize_t size);
 
 int cleanAndSend(const char * buffer, int cmdStart, int cmdEnd);
+
+void logResponse(char * buffer);

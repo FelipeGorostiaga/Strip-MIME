@@ -89,7 +89,6 @@ int socketToOriginServer(in_addr_t address) {
     } else {
         config->originServerIsActive = TRUE;
     }
-
     return socketfd;
 }
 
@@ -130,7 +129,6 @@ void checkForNewClients(int socket, int clientType) {
     if (FD_ISSET(socket, &readfds)) {
         newAccess(config);
         newConcurrentConnection(config);
-        printf("HAY UN CLIENTE NUEVO!\n");
         if ((newSocket = accept(socket, (struct sockaddr *)&popSocketAddress, (socklen_t*)&addrLen))<0) {
             perror("Error accepting new client");
             exit(EXIT_FAILURE);
@@ -148,15 +146,10 @@ void checkForNewClients(int socket, int clientType) {
                 break;
             }
         }
-        printf("YA TE ACEPTE!\n");
         if(clientType == CLIENT) {
-            printf("SOS POP3, AHI TE MANDO LA BIENVENIDA!\n");
             if( write(newSocket,buffer,(size_t )read(originServerSockets[i],buffer,BUFFER_SIZE)) == -1) {
                 perror("Error at send call");
             }
-            printf("YA TE LA MANDE!\n");
-        } else {
-            printf("New admin accepted\n");
         }
         makeNonBlocking(newSocket);
     }
