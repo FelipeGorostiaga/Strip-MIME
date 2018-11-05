@@ -189,13 +189,20 @@ int readFromFilter() {
 
     if ((bytesRead = read(parentInputPipeFds[0], buffer, BUFF_SIZE)) == -1) {
         if(errno == EWOULDBLOCK) {
-            if(filteredResponses == requestsNum) { return TRUE; }
+            if(filteredResponses == requestsNum) {
+                close(parentOutputPipeFds[0]);
+                close(parentOutputPipeFds[1]);
+                close(parentInputPipeFds[0]);
+                close(parentInputPipeFds[1]);
+                return TRUE;
+            }
             return FALSE;
         }
         fprintf(stderr, "Error reading from filter\n");
         exit(EXIT_FAILURE);
     }
     buffer[bytesRead] = 0;
+    printf("LEI DEL FILTRO: %s\n", buffer);
     filteredResponses += countResponses(buffer,bytesRead);
     write(clientFd,buffer,(size_t)bytesRead);
     if(filteredResponses == requestsNum) {
@@ -208,12 +215,11 @@ int readFromFilter() {
 
 void startFilter() {
     int i;
-    char *argv[] = {"cat", 0};
+    char *argv[] = {"./stripmime", 0};
 
     int ret1 = pipe(parentInputPipeFds);
     int ret2 = pipe(parentOutputPipeFds);
 
-    printf("LLegueeee!\n");
     if(fork() == 0) {
         for(i = 0; i < 5; i++) {
             putenv(envVars[i]);
