@@ -8,7 +8,7 @@
 
 #define TRUE 1
 #define FALSE 0
-#define BUFF_SIZE 256
+#define BUFF_SIZE 2048
 #define BUFFER_END 15
 #define NOT_SUPPORTED (-1)
 #define CONTINUE 0
@@ -21,10 +21,10 @@ typedef struct attendReturningFields {
 } arf;
 
 
-struct attendReturningFields attendClient(int clientSockFd, int originServerSock, char * envVariables [5]);
+struct attendReturningFields attendClient(int clientSockFd, int originServerSock);
 
 /*Client attention when origin server supports pipelining*/
-void pipeliningMode();
+void pipeliningMode(int client, int originServer);
 
 /*Client attention when origin server does not support pipelining*/
 void noPipeliningMode();
@@ -36,16 +36,16 @@ void parseChunk(char * buffer, ssize_t bytesRead);
 int writeAndReadFilter();
 
 /*Reads from client and forwards to origin server */
-int readFromClient();
+int readFromClient(int client,int originServer);
 
 /*Reads from origin server returning TRUE if reading has finished FALSE if not */
-int readFromOrigin();
+int readFromOrigin(int originServer,int filterInput);
 
 /*Reads from filter returning TRUE if reading has finished FALSE if not */
-int readFromFilter();
+int readFromFilter(int filterOutput, int clientFd);
 
 /*Excecutes filter and opens pipes*/
-void startFilter();
+int * startFilter(char * envVariables [5]);
 
 /*Checks with origin server if pipelining is supported*/
 int pipeliningSupport(int originServer);

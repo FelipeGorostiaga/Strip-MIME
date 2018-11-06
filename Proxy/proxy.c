@@ -11,6 +11,8 @@ struct sockaddr_in6 psa6, csa6;
 int clientSockets [MAX_CLIENTS];
 int clientTypeArray [MAX_CLIENTS];
 int originServerSockets [MAX_CLIENTS];
+int filterOutputs[MAX_CLIENTS];
+int filterInputs[MAX_CLIENTS];
 fd_set readfds;
 
 int main(int argc, char * argv []) {
@@ -108,6 +110,22 @@ void selectLoop() {
             if(descriptor > max) {
                 max = descriptor;
             }
+
+            descriptor = filterOutputs[i];
+            if(descriptor > 0) {
+                FD_SET(descriptor, &readfds);
+            }
+            if(descriptor > max) {
+                max = descriptor;
+            }
+
+            descriptor = originServerSockets[i];
+            if(descriptor > 0) {
+                FD_SET(descriptor, &readfds);
+            }
+            if(descriptor > max) {
+                max = descriptor;
+            }
         }
         selectReturn = select( max + 1 , &readfds , NULL , NULL , NULL);
         if ((selectReturn < 0) && (errno != EINTR)) {
@@ -117,6 +135,8 @@ void selectLoop() {
         checkForNewClients(configSocketFd,ADMIN);
         checkForNewClients(popSocketFd,CLIENT);
         readFromClients();
+        originServerResponses();
+        readFilters();
     }
 }
 
@@ -124,6 +144,9 @@ void checkForNewClients(int socket, int clientType) {
 
     int  newSocket, addrLen, i;
     char buffer[BUFFER_SIZE];
+    int * pipes;
+    char env[BUFFER_SIZE] = {0};
+    char * envVariables [5];
 
     if (FD_ISSET(socket, &readfds)) {
         newAccess(config);
@@ -142,10 +165,31 @@ void checkForNewClients(int socket, int clientType) {
                 clientSockets[i] = newSocket;
                 clientTypeArray[i] = clientType;
                 originServerSockets[i] = socketToOriginServer(getOriginServer(config));
+                makeNonBlocking(clientSockets[i]);
                 break;
             }
         }
         if(clientType == CLIENT) {
+            strcpy(env,"FILTER_MEDIAS=");
+            strcpy(env+strlen("FILTER_MEDIAS="),getCensurableMediaTypes(config));
+            envVariables[0] = env;
+            strcpy(env,"FILTER_MSG=");
+            strcpy(env+strlen("FILTER_MSG="),getReplaceMessage(config));
+            envVariables[1] = env;
+            strcpy(env,"POP3FILTER_VERSION=");
+            strcpy(env+strlen("POP3FILTER_VERSION="),getVersion(config));
+            envVariables[2] = env;
+            strcpy(env,"POP3_USERNAME=");
+            strcpy(env+strlen("POP3_USERNAME="),getCurrentUser(config));
+            envVariables[3] = env;
+            strcpy(env,"POP3_SERVER=");
+            strcpy(env+strlen("POP3_SERVER="),getOriginServerString(config));
+            envVariables[4] = env;
+            pipes = startFilter(envVariables);
+            filterOutputs[i] = pipes[0];
+            filterInputs[i] = pipes[1];
+            makeNonBlocking(pipes[0]);
+            makeNonBlocking(pipes[1]);
             if( write(newSocket,buffer,(size_t )read(originServerSockets[i],buffer,BUFFER_SIZE)) == -1) {
                 perror("Error at send call");
             }
@@ -154,10 +198,44 @@ void checkForNewClients(int socket, int clientType) {
     }
 }
 
+void originServerResponses() {
+    int i, descriptor, ret;
+
+    for (i = 0; i < MAX_CLIENTS; i++) {
+        descriptor = originServerSockets[i];
+        if (FD_ISSET( descriptor , &readfds)) {
+            ret = readFromOrigin(descriptor,filterInputs[i]);
+            if(ret == QUIT) {
+                close(originServerSockets[i]);
+                close(filterOutputs[i]);
+                close(filterInputs[i]);
+                close(clientSockets[i]);
+                originServerSockets[i] = filterOutputs[i] = filterInputs[i] = clientSockets[i] = 0;
+            }
+        }
+    }
+}
+
+void readFilters() {
+    int i, descriptor, ret;
+
+    for (i = 0; i < MAX_CLIENTS; i++) {
+        descriptor = filterOutputs[i];
+        if (FD_ISSET( descriptor , &readfds)) {
+            ret = readFromFilter(descriptor,clientSockets[i]);
+            if(ret == QUIT) {
+                close(originServerSockets[i]);
+                close(filterOutputs[i]);
+                close(filterInputs[i]);
+                close(clientSockets[i]);
+                originServerSockets[i] = filterOutputs[i] = filterInputs[i] = clientSockets[i] = 0;
+            }
+        }
+    }
+}
+
 void readFromClients() {
     int i, descriptor, retVal;
-    char env[BUFFER_SIZE] = {0};
-    char * envVariables [5];
     struct attendReturningFields rf;
 
     for (i = 0; i < MAX_CLIENTS; i++) {
@@ -177,22 +255,8 @@ void readFromClients() {
                     clientTypeArray[i] = clientSockets[i] = originServerSockets[i] = 0;
                     return;
                 }
-                strcpy(env,"FILTER_MEDIAS=");
-                strcpy(env+strlen("FILTER_MEDIAS="),getCensurableMediaTypes(config));
-                envVariables[0] = env;
-                strcpy(env,"FILTER_MSG=");
-                strcpy(env+strlen("FILTER_MSG="),getReplaceMessage(config));
-                envVariables[1] = env;
-                strcpy(env,"POP3FILTER_VERSION=");
-                strcpy(env+strlen("POP3FILTER_VERSION="),getVersion(config));
-                envVariables[2] = env;
-                strcpy(env,"POP3_USERNAME=");
-                strcpy(env+strlen("POP3_USERNAME="),getCurrentUser(config));
-                envVariables[3] = env;
-                strcpy(env,"POP3_SERVER=");
-                strcpy(env+strlen("POP3_SERVER="),getOriginServerString(config));
-                envVariables[4] = env;
-                rf = attendClient(descriptor,originServerSockets[i], envVariables);
+
+                rf = attendClient(descriptor,originServerSockets[i]);
                 if(rf.closeConnectionFlag == TRUE) {
                     closedConcurrentConnection(config);
                     close(descriptor);

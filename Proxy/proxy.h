@@ -38,3 +38,7 @@ void makeNonBlocking(int fd);
 void updateOriginOpenness();
 
 void firstReadToGeneric() ;
+
+void originServerResponses();
+
+void readFilters();
