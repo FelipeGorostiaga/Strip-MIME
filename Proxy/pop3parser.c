@@ -12,7 +12,7 @@
 #include "pop3parser.h"
 
 
-static int clientFd, originServer, pipeliningSupported, requestsNum, responsesNum, filteredResponses;
+static int clientFd, originServer, pipeliningSupported, requestsNum;
 
 struct attendReturningFields rf;
 
@@ -22,11 +22,15 @@ struct attendReturningFields attendClient(int clientSockFd, int originServerSock
     clientFd = clientSockFd;
     originServer = originServerSock;
     pipeliningSupported = pipeliningSupport(originServer);
+    if(pipeliningSupported == QUIT) {
+        rf.closeConnectionFlag = TRUE;
+    }
     if(pipeliningSupported) {
         pipeliningMode(clientSockFd,originServerSock);
     }
     else {
-        //noPipeliningMode();
+        printf("Sorry, no pipelining supported\n");
+        rf.closeConnectionFlag = TRUE;
     }
     return rf;
 }
@@ -35,11 +39,11 @@ void pipeliningMode(int client, int originServer) {
 
     int ret = readFromClient(client,originServer);
 
-    if(ret == QUIT || ret == QUITCOMMAND) {
-        rf.closeConnectionFlag = TRUE;
-        if(ret == QUIT) {
-            return;
-        }
+    if(ret == QUIT) {
+        rf.closeConnectionFlag = QUIT;
+    }
+    if(ret == QUITCOMMAND) {
+        rf.closeConnectionFlag = QUITCOMMAND;
     }
 }
 
@@ -103,75 +107,81 @@ int readFromClient(int client,int originServer) {
     char buffer [BUFF_SIZE] = {0};
     size_t i;
 
-    if((bytesRead = read(client,buffer, BUFF_SIZE)) == -1) {
-        if(errno == EWOULDBLOCK) {
-            return TRUE;
+    while(TRUE) {
+        if((bytesRead = read(client,buffer, BUFF_SIZE)) == -1) {
+            if(errno == EWOULDBLOCK) {
+                printf("Me voy, no hay mas que leer\n");
+                return TRUE;
+            }
+            fprintf(stderr,"Error reading from client\n");
+            exit(EXIT_FAILURE);
         }
-        fprintf(stderr,"Error reading from client\n");
-        exit(EXIT_FAILURE);
-    }
-    if(bytesRead == 0) {
-        return QUIT;
-    }
-    printf("Writing to origin server: %s\n",buffer);
-    write(originServer,buffer,(size_t)bytesRead);
-    logAccess(buffer,0);
-    rf.bytesTransferred += bytesRead;
-    for(i = 0; i < bytesRead; i++) {
-        if(buffer[i] == '\n') {
-            requestsNum += 1;
-            logAccess(buffer,i+1);
+        if(bytesRead == 0) {
+            return QUIT;
+        }
+        printf("Writing to origin server: %s\n",buffer);
+        write(originServer,buffer,(size_t)bytesRead);
+        logAccess(buffer,0);
+        rf.bytesTransferred += bytesRead;
+        for(i = 0; i < bytesRead; i++) {
+            if(buffer[i] == '\n') {
+                requestsNum += 1;
+                logAccess(buffer,i+1);
+            }
         }
     }
-    return FALSE;
+
 }
 
 
 int readFromOrigin(int originServer,int filterInput) {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
-    if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
-        if(errno == EWOULDBLOCK) {
-            return TRUE;
+
+        if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
+            if(errno == EWOULDBLOCK) {
+                return TRUE;
+            }
+            fprintf(stderr, "Error reading from origin\n");
+            exit(EXIT_FAILURE);
         }
-        fprintf(stderr, "Error reading from origin\n");
-        exit(EXIT_FAILURE);
-    }
-    if(bytesRead == 0) {
-        return QUIT;
-    }
-    responsesNum += countResponses(buffer,bytesRead);
-    rf.bytesTransferred += bytesRead;
-    write(filterInput,buffer,(size_t)bytesRead);
-    return TRUE;
+        if(bytesRead == 0) {
+            printf("Retorno quitcommand\n");
+            return QUITCOMMAND;
+        }
+        printf("Read from origin:%s\n",buffer);
+        rf.bytesTransferred += bytesRead;
+        write(filterInput,buffer,(size_t)bytesRead);
+    return 0;
 }
 
 int readFromFilter(int filterOutput, int clientFd) {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
-
-    if ((bytesRead = read(filterOutput, buffer, BUFF_SIZE)) == -1) {
-        fprintf(stderr, "Error reading from filter\n");
-        if(errno == EWOULDBLOCK) {
-            return TRUE;
+    while(TRUE) {
+        if ((bytesRead = read(filterOutput, buffer, BUFF_SIZE)) == -1) {
+            fprintf(stderr, "Error reading from filter\n");
+            if(errno == EWOULDBLOCK) {
+                return TRUE;
+            }
+            exit(EXIT_FAILURE);
+        } else if(bytesRead == 0) {
+            return QUIT;
         }
-        exit(EXIT_FAILURE);
-    } else if(bytesRead == 0) {
-        return QUIT;
+        rf.bytesTransferred+=bytesRead;
+        printf("LEI DEL FILTRO: %s\n", buffer);
+        write(clientFd,buffer,(size_t)bytesRead);
+        return TRUE;
     }
-    printf("LEI DEL FILTRO: %s\n", buffer);
-    filteredResponses += countResponses(buffer,bytesRead);
-    write(clientFd,buffer,(size_t)bytesRead);
-    return TRUE;
 }
 
 
 
-int * startFilter(char ** envVariables) {
+int * startFilter(char * command, char ** envVariables) {
     int i;
-    char *argv[] = {"./stripmime", 0};
+    char *argv[] = {command, 0};
     int * pipes = malloc(sizeof(int)*2);
-
+    printf("Starting %s\n",command);
     int parentInputPipeFds[2];
     int parentOutputPipeFds[2];
 
@@ -187,7 +197,10 @@ int * startFilter(char ** envVariables) {
         }
         dup2(parentOutputPipeFds[0],STDIN_FILENO);
         dup2(parentInputPipeFds[1],STDOUT_FILENO);
-        execvp(argv[0],argv);
+        if(execvp(argv[0],argv) < 0) {
+            fprintf(stderr,"Invalid command, executing cat\n");
+            execvp("cat",argv);
+        }
     }
     else {
         if(ret1 == -1) {
@@ -208,12 +221,17 @@ int pipeliningSupport(int originServer) {
     char previousEnd[BUFFER_END];
     int found = FALSE, firstRead = TRUE;
     ssize_t bytesRead;
+    ssize_t writen;
 
-    write(originServer,"CAPA\r\n",6);
+    if((writen = write(originServer,"CAPA\r\n",6)) == 0) {
+        return QUIT;
+    }
+    if(writen == -1) {
+        return QUIT;
+    }
     while(!found) {
-        if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
-            fprintf(stderr, "Error reading capabilities from origin server");
-            exit(EXIT_FAILURE);
+        if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1 || bytesRead == 0) {
+            return QUIT;
         }
         buffer[bytesRead] = '\0';
         if (bytesRead < BUFF_SIZE) {
@@ -290,30 +308,30 @@ int countResponses(char * buf, ssize_t size) {
     return count;
 }
 
-int cleanAndSend(const char * buffer, int cmdStart, int cmdEnd) {
-    char aux [BUFF_SIZE];
-    int i = cmdStart;
-    int j = 0, k = 0;
-    while(i <= cmdEnd) {
-        aux[j] = buffer[i];
-        i++;
-        j++;
-    }
-    aux[j] = 0;
-    for(k = 0; aux[j - k - 3] == ' ' &&  k < (cmdEnd - cmdStart); k++);
-    if( k != 0 ) {
-        aux[j - k - 2] = '\r';
-        aux[j - k - 1] = '\n';
-        aux[j - k] = '0';
-    }
-    if(write(originServer,aux,(size_t) (j-k)) == 0) {
-        return QUIT;
-    }
-    if(strncasecmp((buffer+cmdStart),"QUIT",4) == 0) {
-        return QUITCOMMAND;
-    }
-    return TRUE;
-}
+//int cleanAndSend(const char * buffer, int cmdStart, int cmdEnd) {
+//    char aux [BUFF_SIZE];
+//    int i = cmdStart;
+//    int j = 0, k = 0;
+//    while(i <= cmdEnd) {
+//        aux[j] = buffer[i];
+//        i++;
+//        j++;
+//    }
+//    aux[j] = 0;
+//    for(k = 0; aux[j - k - 3] == ' ' &&  k < (cmdEnd - cmdStart); k++);
+//    if( k != 0 ) {
+//        aux[j - k - 2] = '\r';
+//        aux[j - k - 1] = '\n';
+//        aux[j - k] = '0';
+//    }
+//    if(write(originServer,aux,(size_t) (j-k)) == 0) {
+//        return QUIT;
+//    }
+//    if(strncasecmp((buffer+cmdStart),"QUIT",4) == 0) {
+//        return QUITCOMMAND;
+//    }
+//    return TRUE;
+//}
 
 void logResponse(char * buffer) {
     char buff[100];

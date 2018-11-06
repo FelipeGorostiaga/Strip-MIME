@@ -42,3 +42,5 @@ void firstReadToGeneric() ;
 void originServerResponses();
 
 void readFilters();
+
+void closeAll(int index);

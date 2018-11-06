@@ -5,7 +5,7 @@
 #include "proxy.h"
 
 Configuration config;
-int popSocketFd, configSocketFd, genericOriginServer;
+int popSocketFd, configSocketFd, genericOriginServer, quitInvoked;
 struct sockaddr_in popSocketAddress, configSocketAddress;
 struct sockaddr_in6 psa6, csa6;
 int clientSockets [MAX_CLIENTS];
@@ -95,7 +95,10 @@ int socketToOriginServer(in_addr_t address) {
 
 void selectLoop() {
     int selectReturn, max, descriptor, i;
+
     while(TRUE) {
+
+        quitInvoked = -1;
         FD_ZERO (&readfds);
         FD_SET(popSocketFd, &readfds);
         FD_SET(configSocketFd, &readfds);
@@ -137,6 +140,9 @@ void selectLoop() {
         readFromClients();
         originServerResponses();
         readFilters();
+        if(quitInvoked >= 0) {
+            closeAll(quitInvoked);
+        }
     }
 }
 
@@ -185,7 +191,7 @@ void checkForNewClients(int socket, int clientType) {
             strcpy(env,"POP3_SERVER=");
             strcpy(env+strlen("POP3_SERVER="),getOriginServerString(config));
             envVariables[4] = env;
-            pipes = startFilter(envVariables);
+            pipes = startFilter(getCommand(config),envVariables);
             filterOutputs[i] = pipes[0];
             filterInputs[i] = pipes[1];
             makeNonBlocking(pipes[0]);
@@ -206,11 +212,10 @@ void originServerResponses() {
         if (FD_ISSET( descriptor , &readfds)) {
             ret = readFromOrigin(descriptor,filterInputs[i]);
             if(ret == QUIT) {
-                close(originServerSockets[i]);
-                close(filterOutputs[i]);
-                close(filterInputs[i]);
-                close(clientSockets[i]);
-                originServerSockets[i] = filterOutputs[i] = filterInputs[i] = clientSockets[i] = 0;
+                closeAll(i);
+            }
+            if(ret == QUITCOMMAND) {
+                quitInvoked = i;
             }
         }
     }
@@ -218,17 +223,13 @@ void originServerResponses() {
 
 void readFilters() {
     int i, descriptor, ret;
-
     for (i = 0; i < MAX_CLIENTS; i++) {
         descriptor = filterOutputs[i];
         if (FD_ISSET( descriptor , &readfds)) {
+            printf("Hay un filtro para leer\n");
             ret = readFromFilter(descriptor,clientSockets[i]);
             if(ret == QUIT) {
-                close(originServerSockets[i]);
-                close(filterOutputs[i]);
-                close(filterInputs[i]);
-                close(clientSockets[i]);
-                originServerSockets[i] = filterOutputs[i] = filterInputs[i] = clientSockets[i] = 0;
+                closeAll(i);
             }
         }
     }
@@ -238,6 +239,7 @@ void readFromClients() {
     int i, descriptor, retVal;
     struct attendReturningFields rf;
 
+    printf("Select de client\n");
     for (i = 0; i < MAX_CLIENTS; i++) {
         descriptor = clientSockets[i];
         if (FD_ISSET( descriptor , &readfds)) {
@@ -250,23 +252,22 @@ void readFromClients() {
             else if(clientTypeArray[i] == CLIENT){
                 if(!getOriginServerIsActive(config)) {
                     write(descriptor,"-ERR Connection refused\r\n", strlen("-ERR Connection refused\r\n"));
-                    close(descriptor);
-                    close(originServerSockets[i]);
-                    clientTypeArray[i] = clientSockets[i] = originServerSockets[i] = 0;
+                    closeAll(i);
                     return;
                 }
 
                 rf = attendClient(descriptor,originServerSockets[i]);
-                if(rf.closeConnectionFlag == TRUE) {
-                    closedConcurrentConnection(config);
-                    close(descriptor);
-                    close(originServerSockets[i]);
-                    clientTypeArray[i] = clientSockets[i] = originServerSockets[i] = 0;
+                if(rf.closeConnectionFlag == QUIT) {
+                    closeAll(i);
+                }
+                if(rf.closeConnectionFlag == QUITCOMMAND) {
+                    quitInvoked = i;
                 }
                 addBytesTransferred(config,rf.bytesTransferred);
             }
         }
     }
+    printf("Sali de select de client\n");
 }
 
 void makeNonBlocking(int fd) {
@@ -291,4 +292,13 @@ void firstReadToGeneric() {
     char buff [BUFF_SIZE];
 
     read(genericOriginServer,buff,BUFF_SIZE);
+}
+
+void closeAll(int index) {
+    closedConcurrentConnection(config);
+    close(originServerSockets[index]);
+    close(clientSockets[index]);
+    close(filterOutputs[index]);
+    close(filterInputs[index]);
+    originServerSockets[index] = clientSockets[index] = filterOutputs[index] = filterInputs[index] = clientTypeArray[index] = 0;
 }

@@ -8,7 +8,7 @@
 
 #define TRUE 1
 #define FALSE 0
-#define BUFF_SIZE 2048
+#define BUFF_SIZE 1024
 #define BUFFER_END 15
 #define NOT_SUPPORTED (-1)
 #define CONTINUE 0
@@ -18,6 +18,10 @@
 typedef struct attendReturningFields {
     int closeConnectionFlag;
     long bytesTransferred;
+    char writeBuffer [BUFF_SIZE];
+    ssize_t size;
+    int socket;
+    int retValue;
 } arf;
 
 
@@ -45,7 +49,7 @@ int readFromOrigin(int originServer,int filterInput);
 int readFromFilter(int filterOutput, int clientFd);
 
 /*Excecutes filter and opens pipes*/
-int * startFilter(char * envVariables [5]);
+int * startFilter(char * command, char * envVariables [5]);
 
 /*Checks with origin server if pipelining is supported*/
 int pipeliningSupport(int originServer);

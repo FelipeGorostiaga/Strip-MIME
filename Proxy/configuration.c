@@ -20,7 +20,7 @@ Configuration newConfiguration() {
     newConf->managementPort         = (uint16_t)9090;
     newConf->localPort              = (uint16_t)1110;
     newConf->originPort             = (uint16_t)110;
-    newConf->command                = "";
+    newConf->command                = "cat";
     newConf->version                = "0.0.0";
     newConf->concurrentConnections  = 0;
     newConf->bytesTransferred       = 0;
