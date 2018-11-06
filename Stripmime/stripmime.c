@@ -4,7 +4,7 @@ static void getEnvironmentVariables();
 static void splitMimes(char * mimes);
 static void startConsuming(Level current);
 static void feedMoreBytes(Buffer buffer);
-//static void consumeRemainingBytes();
+static void consumeRemainingBytes();
 static void emptyBoundaries(Stack stack);
 static void resetLevel(Level level);
 static void freeResources(Level startingLevel, Buffer buffer, Stack boundaries);
@@ -78,7 +78,7 @@ int pop3StartingPoint = 0;
 
 int main(void) {
   putenv("FILTER_MSG=Parte reemplazada.");
-  putenv("FILTER_MEDIAS=image/png");
+  putenv("FILTER_MEDIAS=text/not-plain");
   getEnvironmentVariables();
   boundaries = newStack();
   buffer = initializeBuffer();
@@ -201,7 +201,7 @@ static void feedMoreBytes(Buffer buffer) {
     endWithFailure(errorMessages[READ_FAILURE]);
 }
 
-/*static void consumeRemainingBytes(Level current) {
+static void consumeRemainingBytes(Level current) {
   if(!current->mustBeCensored) {
    //printf("Tengo que imprimir lo que queda\n");
     int startingPoint = current->bodyParser->bufferStartingPoint;
@@ -221,7 +221,7 @@ static void feedMoreBytes(Buffer buffer) {
     writeAndCheck(STDOUT, "\r\n.\r\n", 5);
   }
   return;
-}*/
+}
 
 static void startConsuming(Level current) {
   while(!buffer->doneReading) {
@@ -798,7 +798,7 @@ static void injectReplacementHeaderAndBody() {
 // two CRLFs preceding the encapsulation line, the first of which is part of the 
 // preceding body part, and the second of which is part of the encapsulation boundary.
 static void parseBody(Level current, char c, Boundary boundary) {
-  /*if(boundary == NULL) {
+  if(boundary == NULL) {
     if(buffer->i == buffer->bytesRead - 1
       || (current->mustBeCensored && buffer->i == buffer->bytesRead - 1)) {
       current->task = DONE_FINAL_BODY;
@@ -811,7 +811,7 @@ static void parseBody(Level current, char c, Boundary boundary) {
       return;
     }
     return;
-  }*/
+  }
   //char aux[4000] = {0};
   //sprintf(aux, "%s; Char: %c\n", bodyStatusNames[current->taskStatus], c);
   //write(STDOUT, aux, strlen(aux));
