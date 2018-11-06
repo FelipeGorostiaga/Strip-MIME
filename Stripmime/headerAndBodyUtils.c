@@ -16,6 +16,7 @@ HeaderParser initializeHeaderParser(int relevantMimes) {
 }
 
 void freeHeaderParser(HeaderParser hp) {
+//write(STDOUT, "FREEEEING ALL\n", strlen("FREEEEING ALL\n"));  
   int index;
   for(index = 0; index < RELEVANT_HEADERS; index++) {
     if(hp->relevantHeaders[index] != NULL) {
@@ -34,8 +35,11 @@ void freeHeaderParser(HeaderParser hp) {
 }
 
 void freeHeaderContents(Header header) {
-  free(header->name);
-  free(header->body);
+//write(STDOUT, "FREEEEING\n", strlen("FREEEEING\n"));
+  if(header->name != NULL)
+    free(header->name);
+  if(header->body != NULL)
+    free(header->body);
 }
 
 Header initializeHeader() {
@@ -49,6 +53,20 @@ Header initializeHeader() {
 void resetHeaderParser(HeaderParser hp, int relevantMimes) {
   if(hp->relevantHeaders == NULL)
     hp->relevantHeaders = calloc(RELEVANT_HEADERS, sizeof(Header));
+  else {
+    int index;
+    for(index = 0; index < RELEVANT_HEADERS; index++) {
+      if(hp->relevantHeaders[index] != NULL) {
+        freeHeaderContents(hp->relevantHeaders[index]);
+        hp->relevantHeaders[index]->name = NULL;
+        hp->relevantHeaders[index]->body = NULL;
+        //free(hp->relevantHeaders[index]);
+        //hp->relevantHeaders[index] = NULL;
+ //write(STDOUT, "\r\njajajajajaja\r\n", strlen("\r\njajajajajaja\r\n"));
+//printHeader(hp->relevantHeaders[index]);
+      }
+    }
+  }
   if(hp->potentialRelevantHeader == NULL)
     hp->potentialRelevantHeader = malloc(RELEVANT_HEADERS * sizeof(char));
   setToTrue(hp->potentialRelevantHeader, RELEVANT_HEADERS);

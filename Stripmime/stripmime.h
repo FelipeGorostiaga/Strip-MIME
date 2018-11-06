@@ -10,7 +10,7 @@
 #define COMPOSITE_MIMES 2
 #define HYPHENS 2
 #define CRLF 2
-#define BUF_BLOCK 100
+#define BUF_BLOCK 1000
 
 char * relevantHeaderNames[RELEVANT_HEADERS] = {
   "Content-Type",
