@@ -31,7 +31,7 @@ typedef struct configuration {
     /* -m */
     char * replaceMessage;
     /* -M */
-    char * censurableMediaTypes;
+    char  censurableMediaTypes [256];
     /* -o */
     uint16_t managementPort;
     /* -p */

@@ -30,15 +30,6 @@ struct attendReturningFields attendClient(int clientSockFd, int originServerSock
 /*Client attention when origin server supports pipelining*/
 void pipeliningMode(int client, int originServer);
 
-/*Client attention when origin server does not support pipelining*/
-void noPipeliningMode();
-
-/*Separates indiviudual commands and sends them to server. Returns the index of start of the last unfinished command*/
-void parseChunk(char * buffer, ssize_t bytesRead);
-
-/*Performs simultaneous write and reads to filter*/
-int writeAndReadFilter();
-
 /*Reads from client and forwards to origin server */
 int readFromClient(int client,int originServer);
 
@@ -60,11 +51,3 @@ int findPipelining(char * str, ssize_t size);
 /*Writes current command in logs*/
 void logAccess(char * buffer, size_t cmdStart);
 
-/*Counts the number of closed responses in each buffer read*/
-int countResponses(char * buf, ssize_t size);
-
-/*Cleans unwanted noise and sends command to server*/
-int cleanAndSend(const char * buffer, int cmdStart, int cmdEnd);
-
-/*Writes responses in stdout*/
-void logResponse(char * buffer);

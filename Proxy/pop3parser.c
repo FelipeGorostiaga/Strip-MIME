@@ -12,7 +12,7 @@
 #include "pop3parser.h"
 
 
-static int clientFd, originServer, pipeliningSupported, requestsNum;
+static int clientFd, originServer, pipeliningSupported;
 
 struct attendReturningFields rf;
 
@@ -23,14 +23,14 @@ struct attendReturningFields attendClient(int clientSockFd, int originServerSock
     originServer = originServerSock;
     pipeliningSupported = pipeliningSupport(originServer);
     if(pipeliningSupported == QUIT) {
-        rf.closeConnectionFlag = TRUE;
+        rf.closeConnectionFlag = QUIT;
+        return rf;
     }
     if(pipeliningSupported) {
         pipeliningMode(clientSockFd,originServerSock);
     }
     else {
-        printf("Sorry, no pipelining supported\n");
-        rf.closeConnectionFlag = TRUE;
+        rf.closeConnectionFlag = QUIT;
     }
     return rf;
 }
@@ -47,85 +47,28 @@ void pipeliningMode(int client, int originServer) {
     }
 }
 
-//void noPipeliningMode() {
-//    ssize_t bytesRead;
-//    char buffer [BUFF_SIZE] = {0};
-//
-//    while(TRUE) {
-//        if((bytesRead = read(clientFd,buffer, BUFF_SIZE)) == -1) {
-//            if(errno == EWOULDBLOCK) {
-//                return;
-//            }
-//            fprintf(stderr,"Read error in no pipelining mode");
-//            exit(EXIT_FAILURE);
-//        }
-//        if(bytesRead == 0) {
-//            rf.closeConnectionFlag = TRUE;
-//            return;
-//        }
-//        rf.bytesTransferred += bytesRead;
-//        parseChunk(buffer, bytesRead);
-//    }
-//}
-
-//void parseChunk(char * buffer, ssize_t chunkSize) {
-//    int cmdStart = 0, cmdEnd = 0;
-//    int endWithNewline = FALSE;
-//    int originClosed;
-//    int i = 0;
-//
-//    if(requestsNum == 0) {
-//        logAccess(buffer,(size_t )cmdStart);
-//    }
-//    for(i = 0; i < chunkSize; i++) {
-//        if(buffer[i] == '\n') {
-//            cmdEnd = i;
-//            requestsNum += 1;
-//            cleanAndSend(buffer,cmdStart,cmdEnd);
-//            originClosed = writeAndReadFilter();
-//            if(originClosed) {
-//                rf.closeConnectionFlag = TRUE;
-//                return;
-//            }
-//            cmdStart = cmdEnd + 1;
-//            if(i == chunkSize-1) {
-//                endWithNewline = TRUE;
-//            } else {
-//                logAccess(buffer,(size_t )cmdStart);
-//            }
-//        }
-//    }
-//    if(!endWithNewline) {
-//        write(originServer,buffer+cmdStart, (size_t)chunkSize-cmdStart);
-//    }
-//
-//}
-
 
 int readFromClient(int client,int originServer) {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
     size_t i;
+    int ret = TRUE;
 
     while(TRUE) {
         if((bytesRead = read(client,buffer, BUFF_SIZE)) == -1) {
             if(errno == EWOULDBLOCK) {
-                printf("Me voy, no hay mas que leer\n");
-                return TRUE;
+                return ret;
             }
-            fprintf(stderr,"Error reading from client\n");
-            exit(EXIT_FAILURE);
+            return QUIT;
         }
         if(bytesRead == 0) {
             return QUIT;
         }
-        printf("Writing to origin server: %s\n",buffer);
         write(originServer,buffer,(size_t)bytesRead);
         logAccess(buffer,0);
         rf.bytesTransferred += bytesRead;
         for(i = 0; i < bytesRead; i++) {
-            if(buffer[i] == '\n') {
-                requestsNum += 1;
+            if(buffer[i] == '\n' && i != bytesRead-1) {
                 logAccess(buffer,i+1);
             }
         }
@@ -138,19 +81,19 @@ int readFromOrigin(int originServer,int filterInput) {
     ssize_t bytesRead;
     char buffer [BUFF_SIZE] = {0};
 
-        if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
-            if(errno == EWOULDBLOCK) {
-                return TRUE;
-            }
-            fprintf(stderr, "Error reading from origin\n");
-            exit(EXIT_FAILURE);
+    if ((bytesRead = read(originServer, buffer, BUFF_SIZE)) == -1) {
+        if(errno == EWOULDBLOCK) {
+            return TRUE;
         }
-        if(bytesRead == 0) {
-            return QUITCOMMAND;
-        }
-        printf("Read from origin:%s\n",buffer);
-        rf.bytesTransferred += bytesRead;
-        write(filterInput,buffer,(size_t)bytesRead);
+        return QUIT;
+    }
+    if(bytesRead == 0) {
+        return QUITCOMMAND;
+    }
+    if(strncasecmp(buffer,"-ERR Disconnected: Shutting down\r\n",(size_t )bytesRead) == 0) {
+        return QUIT;
+    }
+    write(filterInput,buffer,(size_t)bytesRead);
     return 0;
 }
 
@@ -159,16 +102,13 @@ int readFromFilter(int filterOutput, int clientFd) {
     char buffer [BUFF_SIZE] = {0};
     while(TRUE) {
         if ((bytesRead = read(filterOutput, buffer, BUFF_SIZE)) == -1) {
-            fprintf(stderr, "Error reading from filter\n");
             if(errno == EWOULDBLOCK) {
                 return TRUE;
             }
-            exit(EXIT_FAILURE);
+            return QUIT;
         } else if(bytesRead == 0) {
             return QUIT;
         }
-        rf.bytesTransferred+=bytesRead;
-        printf("LEI DEL FILTRO: %s\n", buffer);
         write(clientFd,buffer,(size_t)bytesRead);
         return TRUE;
     }
@@ -287,55 +227,4 @@ void logAccess(char * buffer, size_t cmdStart) {
     fprintf(stdout,"id: %d ", clientFd);
     fprintf(stdout,"%s\n",cmd);
 
-}
-
-int countResponses(char * buf, ssize_t size) {
-    int i = 0, count = 0, mailEndingParse = FALSE;
-
-    for(i = 0; i < size; i++) {
-        if(!mailEndingParse && buf[i] == '\r' && buf[i+1] == '\n'
-           && ((i + 5 >= size && size != BUFF_SIZE) || (buf[i+2] == '.' && buf[i+3] == '\r' && buf[i+4] == '\n'))) {
-            mailEndingParse = TRUE;
-            count++;
-        }
-        if(strncasecmp(buf+i,"+OK",3) == 0) {
-            logResponse("OK\0");
-        } else if(strncasecmp(buf+i,"-ERR",4) == 0) {
-            logResponse("ERR\0");
-        }
-    }
-    return count;
-}
-
-//int cleanAndSend(const char * buffer, int cmdStart, int cmdEnd) {
-//    char aux [BUFF_SIZE];
-//    int i = cmdStart;
-//    int j = 0, k = 0;
-//    while(i <= cmdEnd) {
-//        aux[j] = buffer[i];
-//        i++;
-//        j++;
-//    }
-//    aux[j] = 0;
-//    for(k = 0; aux[j - k - 3] == ' ' &&  k < (cmdEnd - cmdStart); k++);
-//    if( k != 0 ) {
-//        aux[j - k - 2] = '\r';
-//        aux[j - k - 1] = '\n';
-//        aux[j - k] = '0';
-//    }
-//    if(write(originServer,aux,(size_t) (j-k)) == 0) {
-//        return QUIT;
-//    }
-//    if(strncasecmp((buffer+cmdStart),"QUIT",4) == 0) {
-//        return QUITCOMMAND;
-//    }
-//    return TRUE;
-//}
-
-void logResponse(char * buffer) {
-    char buff[100];
-    time_t now = time (0);
-    strftime (buff, 100, "%Y-%m-%d %H:%M:%S", localtime (&now));
-    fprintf(stdout,"%s ", buff);
-    fprintf(stdout,"server response: %s\n", buffer);
 }

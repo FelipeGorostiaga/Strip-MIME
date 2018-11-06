@@ -16,7 +16,6 @@ Configuration newConfiguration() {
     newConf->pop3dir.s_addr         = INADDR_ANY;
     newConf->pop3dirFamily          = AF_INET;
     newConf->replaceMessage         = "Parte reemplazda.";
-    newConf->censurableMediaTypes   = "text/plain";
     newConf->managementPort         = (uint16_t)9090;
     newConf->localPort              = (uint16_t)1110;
     newConf->originPort             = (uint16_t)110;
@@ -114,7 +113,7 @@ int setReplaceMessage(Configuration conf, char * replaceMessage) {
     return TRUE;
 }
 int setCensurableMediaTypes(Configuration conf, char * censurableMediaTypes) {
-    conf->censurableMediaTypes = censurableMediaTypes;
+    strcpy(conf->censurableMediaTypes, censurableMediaTypes);
     return TRUE;
 }
 void setManagementPort(Configuration conf, char * managementPort) {
