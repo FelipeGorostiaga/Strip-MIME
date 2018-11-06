@@ -77,8 +77,8 @@ char ** censoredMimes = NULL;
 int pop3StartingPoint = 0;
 
 int main(void) {
-  putenv("FILTER_MSG=Te censure");
-  putenv("FILTER_MEDIAS=image/jpeg,image/png");
+  putenv("FILTER_MSG=Parte reemplazada.");
+  putenv("FILTER_MEDIAS=image/png");
   getEnvironmentVariables();
   boundaries = newStack();
   buffer = initializeBuffer();
@@ -123,6 +123,7 @@ static void splitMimes(char * mimes) {
   if(charCount % MIME_BLOCK == 0)
     censoredMimes[count] = realloc(censoredMimes[count], index + MIME_BLOCK);
   censoredMimes[count][charCount] = '\0';
+  relevantMimes++;
 }
 
 static void freeResources(Level startingLevel, Buffer buffer, Stack boundaries/*, char ** Mimes*/) {
@@ -715,7 +716,7 @@ static bool checkIsRelevantMime(char * potentialRelevantMime, int position, char
 //sprintf(auxi, "El for lo del medio queda %d", relevantMimes - COMPOSITE_MIMES);
 //write(STDOUT, auxi, strlen(auxi));
   for(index = 0; index < relevantMimes - COMPOSITE_MIMES; index++) {
-   char aux[400] = {0};
+//   char aux[400] = {0};
 //sprintf(aux, "potentialRelevantMIME antes: %d, position: %d, char: %c\n",potentialRelevantMime[index], position, c);
 //write(STDOUT, aux, strlen(aux));
 //printf("potentialRelevantMIME antes: %d, position: %d, char: %c\n",potentialRelevantMime[index], position, c);
