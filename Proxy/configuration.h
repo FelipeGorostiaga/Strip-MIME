@@ -39,7 +39,7 @@ typedef struct configuration {
     /* -P */
     uint16_t originPort;
     /* -t */
-    char * command;
+    char command [256];
     /* -v */
     char * version;
     /* -z */

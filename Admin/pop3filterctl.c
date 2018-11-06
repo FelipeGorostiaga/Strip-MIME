@@ -6,7 +6,7 @@ int main(int argc, char * argv []) {
     int port;
     char * address;
 
-    if(argc == 1) {
+    if(argc != 3) {
         address = "127.0.0.1";
         port = 9090;
     }
@@ -461,7 +461,7 @@ int isErrorMessage(char * string) {
     return 0;
 }
 
-int connectSocket(char * address, int port) {
+int connectSocket(char * address, uint16_t port) {
     int fd;
 
     if((fd = socket(AF_INET,SOCK_STREAM,IPPROTO_SCTP)) == -1 ) {

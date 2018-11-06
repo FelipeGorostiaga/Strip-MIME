@@ -146,7 +146,6 @@ int readFromOrigin(int originServer,int filterInput) {
             exit(EXIT_FAILURE);
         }
         if(bytesRead == 0) {
-            printf("Retorno quitcommand\n");
             return QUITCOMMAND;
         }
         printf("Read from origin:%s\n",buffer);

@@ -20,13 +20,13 @@ Configuration newConfiguration() {
     newConf->managementPort         = (uint16_t)9090;
     newConf->localPort              = (uint16_t)1110;
     newConf->originPort             = (uint16_t)110;
-    newConf->command                = "cat";
     newConf->version                = "0.0.0";
     newConf->concurrentConnections  = 0;
     newConf->bytesTransferred       = 0;
     newConf->totalAccesses          = 0;
     newConf->originServerString     = "";
     newConf->currentUser            = "";
+    strcpy(newConf->command, "cat");
     setManagDir(newConf,"127.0.0.1");
     return newConf;
 }
@@ -146,7 +146,8 @@ void setOriginPort(Configuration conf, char * originPort) {
     }
 }
 int setCommand(Configuration conf, char * command) {
-    conf->command = command;
+    strcpy(conf->command,command);
+    conf->command[strlen(command)] = 0;
     return TRUE;
 }
 void setOriginServer(Configuration conf, char * originServer) {

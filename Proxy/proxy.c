@@ -157,10 +157,18 @@ void checkForNewClients(int socket, int clientType) {
     if (FD_ISSET(socket, &readfds)) {
         newAccess(config);
         newConcurrentConnection(config);
-        if ((newSocket = accept(socket, (struct sockaddr *)&popSocketAddress, (socklen_t*)&addrLen))<0) {
-            perror("Error accepting new client");
-            exit(EXIT_FAILURE);
+        if(clientType == CLIENT) {
+            if ((newSocket = accept(socket, (struct sockaddr *)&popSocketAddress, (socklen_t*)&addrLen))<0) {
+                perror("Error accepting new  pop client");
+                exit(EXIT_FAILURE);
+            }
+        } else {
+            if ((newSocket = accept(socket, (struct sockaddr *)&configSocketAddress, (socklen_t*)&addrLen))<0) {
+                perror("Error accepting new admin client");
+                exit(EXIT_FAILURE);
+            }
         }
+
         if(clientType == CLIENT && !getOriginServerIsActive(config)) {
             write(newSocket,"-ERR Connection refused\r\n", strlen("-ERR Connection refused\r\n"));
             close(newSocket);
@@ -191,6 +199,7 @@ void checkForNewClients(int socket, int clientType) {
             strcpy(env,"POP3_SERVER=");
             strcpy(env+strlen("POP3_SERVER="),getOriginServerString(config));
             envVariables[4] = env;
+            printf("Sending command: %s\n", getCommand(config));
             pipes = startFilter(getCommand(config),envVariables);
             filterOutputs[i] = pipes[0];
             filterInputs[i] = pipes[1];

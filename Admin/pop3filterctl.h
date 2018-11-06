@@ -32,7 +32,7 @@ void printHelp();
 void handleCommandProxy(char *buff, int cmd, int fd,int def);
 void authenticate(int fd);
 void cleanBuffer();
-int connectSocket(char * address, int port);
+int connectSocket(char * address, uint16_t port);
 void initSettings();
 int sendToProxy(int cmd, char * buffer, size_t size, int fd);
 char * readFromProxy(int fd, int cmd);
