@@ -78,9 +78,9 @@ int socketToOriginServer(in_addr_t address) {
     socketfd = socket(AF_INET,SOCK_STREAM,0);
     bzero(&servaddr,sizeof servaddr);
 
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port   = htons(getOriginPort(config));
-    servaddr.sin_addr.s_addr   = address;
+    servaddr.sin_family         = AF_INET;
+    servaddr.sin_port           = htons(getOriginPort(config));
+    servaddr.sin_addr.s_addr    = address;
 
 
     if(connect(socketfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
@@ -151,7 +151,11 @@ void checkForNewClients(int socket, int clientType) {
     int  newSocket, addrLen, i;
     char buffer[BUFFER_SIZE];
     int * pipes;
-    char env[BUFFER_SIZE] = {0};
+    char env0[BUFFER_SIZE] = {0};
+    char env1[BUFFER_SIZE] = {0};
+    char env2[BUFFER_SIZE] = {0};
+    char env3[BUFFER_SIZE] = {0};
+    char env4[BUFFER_SIZE] = {0};
     char * envVariables [5];
 
     if (FD_ISSET(socket, &readfds)) {
@@ -183,22 +187,26 @@ void checkForNewClients(int socket, int clientType) {
                 break;
             }
         }
+        int j;
         if(clientType == CLIENT) {
-            strcpy(env,"FILTER_MEDIAS=");
-            strcpy(env+strlen("FILTER_MEDIAS="),getCensurableMediaTypes(config));
-            envVariables[0] = env;
-            strcpy(env,"FILTER_MSG=");
-            strcpy(env+strlen("FILTER_MSG="),getReplaceMessage(config));
-            envVariables[1] = env;
-            strcpy(env,"POP3FILTER_VERSION=");
-            strcpy(env+strlen("POP3FILTER_VERSION="),getVersion(config));
-            envVariables[2] = env;
-            strcpy(env,"POP3_USERNAME=");
-            strcpy(env+strlen("POP3_USERNAME="),getCurrentUser(config));
-            envVariables[3] = env;
-            strcpy(env,"POP3_SERVER=");
-            strcpy(env+strlen("POP3_SERVER="),getOriginServerString(config));
-            envVariables[4] = env;
+            strcpy(env0,"FILTER_MEDIAS=");
+            strcpy(env0+strlen("FILTER_MEDIAS="),getCensurableMediaTypes(config));
+            envVariables[0] = env0;
+            strcpy(env1,"FILTER_MSG=");
+            strcpy(env1+strlen("FILTER_MSG="),getReplaceMessage(config));
+            envVariables[1] = env1;
+            strcpy(env2,"POP3FILTER_VERSION=");
+            strcpy(env2+strlen("POP3FILTER_VERSION="),getVersion(config));
+            envVariables[2] = env2;
+            strcpy(env3,"POP3_USERNAME=");
+            strcpy(env3+strlen("POP3_USERNAME="),"admin");
+            envVariables[3] = env3;
+            strcpy(env3,"POP3_SERVER=");
+            strcpy(env3+strlen("POP3_SERVER="),getOriginServerString(config));
+            envVariables[4] = env4;
+            for(j = 0; j < 5; j++) {
+                printf("%s\n",envVariables[j]);
+            }
             pipes = startFilter(getCommand(config),envVariables);
             filterOutputs[i] = pipes[0];
             filterInputs[i] = pipes[1];
@@ -299,14 +307,9 @@ void firstReadToGeneric() {
 
 void closeAll(int index) {
     closedConcurrentConnection(config);
-    write(originServerSockets[index],0,0);
     close(originServerSockets[index]);
-    write(clientSockets[index],"-ERR Connection refused\r\n", strlen("-ERR Connection refused\r\n"));
-    write(clientSockets[index],0,0);
     close(clientSockets[index]);
-    write(filterOutputs[index],0,0);
     close(filterOutputs[index]);
-    write(filterInputs[index],0,0);
     close(filterInputs[index]);
     originServerSockets[index] = clientSockets[index] = filterOutputs[index] = filterInputs[index] = clientTypeArray[index] = 0;
 }

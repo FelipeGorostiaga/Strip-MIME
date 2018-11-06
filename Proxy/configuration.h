@@ -17,7 +17,7 @@
 
 typedef struct configuration {
     /* -e */
-    char * errorFile;
+    char  errorFile [256];
     /* -h */
     char * help;
     /* -l */
@@ -29,7 +29,7 @@ typedef struct configuration {
     struct in6_addr managDir6;
     int managDirFamily;
     /* -m */
-    char * replaceMessage;
+    char  replaceMessage[256];
     /* -M */
     char  censurableMediaTypes [256];
     /* -o */
@@ -46,7 +46,7 @@ typedef struct configuration {
     long concurrentConnections;
     long bytesTransferred;
     long totalAccesses;
-    char * currentUser;
+    char  currentUser [256];
     char * originServerString;
     in_addr_t originServer;
     int originServerIsActive;

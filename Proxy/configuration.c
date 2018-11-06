@@ -11,11 +11,9 @@ char metric[20];
 
 Configuration newConfiguration() {
     Configuration newConf = malloc(sizeof(configuration));
-    newConf->errorFile              = "/dev/null";
     newConf->help                   = "Mensaje de ayuda por defecto";
     newConf->pop3dir.s_addr         = INADDR_ANY;
     newConf->pop3dirFamily          = AF_INET;
-    newConf->replaceMessage         = "Parte reemplazda.";
     newConf->managementPort         = (uint16_t)9090;
     newConf->localPort              = (uint16_t)1110;
     newConf->originPort             = (uint16_t)110;
@@ -24,8 +22,9 @@ Configuration newConfiguration() {
     newConf->bytesTransferred       = 0;
     newConf->totalAccesses          = 0;
     newConf->originServerString     = "";
-    newConf->currentUser            = "";
+    strcpy(newConf->errorFile,"/dev/null");
     strcpy(newConf->command, "cat");
+    strcpy(newConf->replaceMessage,"Parte reemplazda.");
     setManagDir(newConf,"127.0.0.1");
     return newConf;
 }
@@ -71,7 +70,7 @@ int setErrorFile(Configuration conf, char * errorFile) {
     DIR* dir = opendir(errorFile);
     if (dir) {
         closedir(dir);
-        conf->errorFile = errorFile;
+        strcpy(conf->errorFile, errorFile);
         return TRUE;
     }
     else if (ENOENT == errno) {
@@ -109,7 +108,7 @@ void setManagDir(Configuration conf, char * managDir) {
     }
 }
 int setReplaceMessage(Configuration conf, char * replaceMessage) {
-    conf->replaceMessage = replaceMessage;
+    strcpy(conf->replaceMessage, replaceMessage);
     return TRUE;
 }
 int setCensurableMediaTypes(Configuration conf, char * censurableMediaTypes) {
@@ -179,7 +178,7 @@ void setOriginServerIsActive(Configuration conf,int value) {
 }
 
 void setCurrentUser(Configuration conf, char * currentUser) {
-    conf->currentUser = currentUser;
+    strcpy(currentUser,conf->currentUser);
 }
 
 uint16_t strToUint16(const char * str) {
