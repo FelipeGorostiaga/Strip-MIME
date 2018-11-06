@@ -26,12 +26,6 @@ char * compositeMimes[] = {
   "message/rfc822"
 };
 
-/*char * censoredMimes[] = {
-  "application/x-desktop",
-  "image/jajaja"
-};*/
-char * cs[] = {"","NEW_LINE_CONTENT_TYPE","CR_MIME","MIME","SEPARATOR","COMMENT","BOUNDARY"};
-
 typedef enum {FALSE=0, TRUE} bool;
 
 typedef struct BufferCDT * Buffer;
@@ -81,12 +75,6 @@ HeaderCDT replacementHeaderCDT = {
 Header replacementHeader = &replacementHeaderCDT;
 
 char * boundaryName = "boundary";
-
-char * statusNames[] = {"", "NEW_LINE", "SEPARATOR", "HEADER_MATCHING",
- "IRRELEVANT_HEADER", "IRRELEVANT_BODY", "EMAIL_BODY", "CR", "INVALID"};
-
-char * bodyStatusNames[] = {"", "NEW_LINE_BODY", "CR_BODY", "HYPHEN", "IRRELEVANT_BODY", "SEARCHING_HYPHEN",
-  "SEARCHING_BOUNDARY", "BOUNDARY_POP_CHECK", "WRITING_NO_CHECK"};
 
 int endWithFailure(const char * msg);
 

@@ -30,43 +30,6 @@ static void addCharToBoundary(HeaderParser hp, char c);
 static void parsePop3(Level current, char c);
 void resetLevelValues(Level);
 
-char * hstat[] =  {"","NEW_LINE","CR_HEADER","RELEVANT_HEADER_NAME",
-"IRRELEVANT_HEADER","HEADER_BODY","CONTENT_TYPE_BODY"};
-/*
-    KNOWN BUGS: |  Content-Type:image/png
-                |     haha
-    will be censored if image/png is censored
-*/
-
-/*
- * Posibles escenarios:
- * - Un solo MIME type (header Content-Type presente)
- * - Multipart/mixed (headers presentes)
- * - Multipart anidados (headers presentes)
- * - Message/rfc822 o cualquier subtipode message
- * - Algun text/plain presente con exactamente el formato que busco (headers y todo)
- * - Ningun header MIME --> Content-Type: text/plain; encoding=us-ascii
- * - Ningun header y con la palabra Content-Type
- * VER --> man wordexp
- * fuzzer / fuzzing
- * fork y exec con bash -c 
- */
-
-    // "Content-Type:"
-    /*
-    HEADERS:
-    - Formato: <FIELD_NAME> <COLON> <FIELD_BODY>
-    Field body puede estar dividido en multiples lineas siempre y cuando despues
-    del CRLF venga WSP (WSP == WhiteSPace)
-    Apache cs->jMeter
-    Address sanitizer: en tiempo de compilacion el comp va a ubicar las variables
-    de cierta forma y salta cuando se encuentre algun acceso invalido a memoria
-    hace falta poner un -f
-    analisis estatico de codigo (cppcheck)
-    COMENTARIO EN HEADER CONTENT-TYPE PUEDE TENER COMENTARIO ANTES DE QUE APAREZCA
-    EL MIME
-    */
-
 Stack boundaries = NULL; // stack containing non-censored multipart boundaries
 Buffer buffer = NULL; // universal buffer
 char * replacementBody = "This is the default replacement message. \
@@ -77,9 +40,8 @@ char ** censoredMimes = NULL;
 int pop3StartingPoint = 0;
 
 int main(void) {
-  putenv("FILTER_MSG=Parte reemplazada.");
-  putenv("FILTER_MEDIAS=text/not-plain");
   getEnvironmentVariables();
+  write(STDOUT, "setee vars", strlen("setee vars"));
   boundaries = newStack();
   buffer = initializeBuffer();
   Level startingLevel = initializeLevel();
@@ -110,7 +72,6 @@ static void splitMimes(char * mimes) {
     if(mimes[index] == ',') {
       censoredMimes[count][charCount++] = '\0';
       charCount = 0;
-     //write(STDOUT, censoredMimes[count], strlen(censoredMimes[count]));
       censoredMimes = realloc(censoredMimes, (count + 1) * sizeof(char *));
       relevantMimes++;
       censoredMimes[relevantMimes - COMPOSITE_MIMES] = NULL;
@@ -174,8 +135,8 @@ Level initializeLevel() {
 }
 
 static void resetLevel(Level level) {
-  level->task = PARSING_POP3; // PARSING_HEADERS, DONE_PARSING_HEADERS, PARSING_BODY, DONE_PARSING_BODY
-  level->taskStatus = NEW_LINE_POP3; // NEW_LINE, HEADER_NAME, HEADER_BODY, SEARCHING_BOUNDARY
+  level->task = PARSING_POP3;
+  level->taskStatus = NEW_LINE_POP3;
   level->headerParser = initializeHeaderParser(relevantMimes - COMPOSITE_MIMES);
   level->bodyParser = initializeBodyParser();
   
@@ -203,13 +164,10 @@ static void feedMoreBytes(Buffer buffer) {
 
 static void consumeRemainingBytes(Level current) {
   if(!current->mustBeCensored) {
-   //printf("Tengo que imprimir lo que queda\n");
     int startingPoint = current->bodyParser->bufferStartingPoint;
-    //write(STDOUT, "Tengo que escribir lo que queda", strlen("Tengo que escribir lo que queda"));
     writeAndCheck(STDOUT, buffer->buffer + startingPoint, buffer->i - startingPoint + 1);
     while(!buffer->doneReading && buffer->bytesRead > 0) {
       feedMoreBytes(buffer);
-      //write(STDOUT, "ESCRIBIENDO TODO!", strlen("escribiendo todo!"));
       if(!buffer->doneReading)
         writeAndCheck(STDOUT, buffer->buffer, buffer->bytesRead);
     }
@@ -234,7 +192,6 @@ static void startConsuming(Level current) {
         || current->task == DONE_PARSING_BODY || current->task == DONE_FINAL_BODY)) {
         int startingPoint = current->bodyParser->bufferStartingPoint;
         writeAndCheck(STDOUT, buffer->buffer + startingPoint, buffer->i - startingPoint);
-        //write(STDOUT, " --IMPRIMI--\n", strlen(" --IMPRIMI--\n"));
       }
       current->bodyParser->bufferStartingPoint = 0;
       if(current->task != DONE_FINAL_BODY)
@@ -244,9 +201,7 @@ static void startConsuming(Level current) {
         write(STDOUT, current->headerParser->hbuf, current->headerParser->hbufIndex + 1);
       }
     }
-//char aux[400];
-//sprintf(aux, "Status: %d; i: %d; bytesRead: %d; doneReading: %d", current->task, buffer->i, buffer->bytesRead, buffer->doneReading);
-//write(STDOUT, aux, strlen(aux));
+
     for( ; buffer->i < buffer->bytesRead; buffer->i++) {
       switch(current->task) {
         case PARSING_POP3:                parsePop3(current, buffer->buffer[buffer->i]);
@@ -256,9 +211,6 @@ static void startConsuming(Level current) {
         case DONE_PARSING_HEADERS:        if(current->isMultipart && !current->mustBeCensored) {
                                             Boundary nextBoundary = current->headerParser->nextBoundary;
                                             push(boundaries, nextBoundary);
-  //write(STDOUT, "PRINT BOUNDARIES ", strlen("PRINT BOUNDARIES "));
-  //write(STDOUT, ((Boundary)peek(boundaries))->bnd, ((Boundary)peek(boundaries))->length);
-  //write(STDOUT, "\r\n", 2);
                                           }
                                           else {
                                             free(current->headerParser->nextBoundary->bnd);
@@ -268,10 +220,9 @@ static void startConsuming(Level current) {
                                           current->taskStatus = NEW_LINE_BODY;
                                           current->bodyParser->bufferStartingPoint = buffer->i;
                                           resetHeaderParser(current->headerParser, relevantMimes - COMPOSITE_MIMES); // free all headers
-                                          //printf("Index: %d, char: %c\n", buffer->i, buffer->buffer[buffer->i]);
                                           parseBody(current, buffer->buffer[buffer->i], peek(boundaries));
                                           break;
-        case PARSING_BODY:                parseBody(current, buffer->buffer[buffer->i], peek(boundaries)); // popeara boundary cuando lo necesite
+        case PARSING_BODY:                parseBody(current, buffer->buffer[buffer->i], peek(boundaries)); // pops boundary when needed
                                           break;
         case DONE_PARSING_BODY:           if(!current->mustBeCensored) { // writes remaining body bytes
                                             int startingPoint = current->bodyParser->bufferStartingPoint;
@@ -280,18 +231,6 @@ static void startConsuming(Level current) {
                                           }
                                           resetLevelValues(current); // sets PARSING_HEADERS, NEW_LINE
                                           resetBodyParser(current->bodyParser);
-                                          /*if(buffer->buffer[buffer->i] == '\n')
-                                            putchar('?');
-                                          else if(buffer->buffer[buffer->i] == '\r')
-                                            putchar('!');
-                                          else
-                                            putchar(buffer->buffer[buffer->i]);*/
-                                          // if(peek(boundaries) == NULL) {
-                                          //   //printf("Se acabo todo\n");
-                                          //   consumeRemainingBytes(current);
-                                          //   return;
-                                          // }
-                                          //printf("Starting to parse headers\n");
                                           break;
         case DONE_FINAL_BODY:             return;
       }
@@ -305,7 +244,6 @@ static void parsePop3(Level current, char c) {
   switch(current->taskStatus) {
     case NEW_LINE_POP3:           if(c == '+' || c == '-') {
                                     current->taskStatus = COMMAND_POP3;
-                                    //addCharToPop3Command(c);
                                   }
                                   else {
                                     current->task = PARSING_HEADERS;
@@ -319,12 +257,10 @@ static void parsePop3(Level current, char c) {
     case CR_POP3:                 if(c == '\n') {
                                     current->taskStatus = NEW_LINE_POP3;
                                   }
-                                  //addCharToPop3Command(c);
                                   break;
     case COMMAND_POP3:            if(c == '\r') {
                                     current->taskStatus = CR_POP3;
                                   }
-                                  //addCharToPop3Command(c);
                                   break;
   }
 }
@@ -357,22 +293,18 @@ static void freeLevelResources(Level level) {
 
 static void parseHeader(Level current, char c) {
   HeaderParser hp = current->headerParser;
-  //printf("Status: (%d) %s\n", current->taskStatus, hstat[current->taskStatus]);
   switch(current->taskStatus) {
-    case NEW_LINE:              ;//printf("Status: %s __Char:%c\n", hstat[current->taskStatus], c);
-                                //printf("Antes de write, hbufindex: %d, matchesFound: %d\n", hp->hbufIndex, matchesFound(hp));
+    case NEW_LINE:              ;
                                 bool shouldPrintLastHeader = hp->hbufIndex > 0 && matchesFound(hp) == -1; // si tengo mas de un char y no es header relevante
                                 if(c == '\r') {
                                   break;
                                 }
                                 if(c == '\n') {
                                   if(shouldPrintLastHeader) {
-                                    //printf("Printeo, matchesFound: %d\n", matchesFound(hp));
                                     writeAndCheck(STDOUT, hp->hbuf, hp->hbufIndex); // si estoy en el ultimo header pre body
                                     hp->hbufIndex = 0;
                                   }
                                   if(!current->mustBeCensored) {
-                                    //printf("No debo censurar y puse todo\n");
                                     putHeaders(hp->relevantHeaders);
                                     if(hp->isRfc822Mime) {
                                       writeAndCheck(STDOUT, "\r\n", 2);
@@ -391,7 +323,6 @@ static void parseHeader(Level current, char c) {
                                   break;
                                 }
                                 if(isspace(c)) {
-                                  // printf("Encontre espacio\n");
                                   current->taskStatus = hp->lastTaskStatus;
                                   if(hp->lastTaskStatus == HEADER_BODY 
                                     || hp->lastTaskStatus == CONTENT_TYPE_BODY) {
@@ -412,15 +343,13 @@ static void parseHeader(Level current, char c) {
                                 setToTrueIfNotFound(hp->potentialRelevantHeader,
                                   RELEVANT_HEADERS);
                                 bool matching = checkIsRelevantHeader(current, c);
-                                //printf("Matching: %c, %d\n",c,  matching);
                                 if(!matching)
                                   current->taskStatus = IRRELEVANT_HEADER;
                                 else
                                   current->taskStatus = RELEVANT_HEADER_NAME;
                                 addCharToHeaderBuffer(hp, c);
                                 break;
-    case CR_HEADER:             //printf("Status: %s __Char:%c\n", hstat[current->taskStatus], c);
-                                if(c == '\n') {
+    case CR_HEADER:             if(c == '\n') {
                                   current->taskStatus = NEW_LINE;
                                   if(hp->lastTaskStatus == HEADER_BODY 
                                     || hp->lastTaskStatus == CONTENT_TYPE_BODY) {
@@ -429,36 +358,27 @@ static void parseHeader(Level current, char c) {
                                   else {
                                     addCharToHeaderBuffer(hp, c);
                                   }
-                                  /*if(hp->lastTaskStatus == CONTENT_TYPE_BODY)
-                                    hp->ctp->wspAndNewLines++;*/
                                   break;
                                 }
                                 current->taskStatus = HEADER_BODY;
                                 break;
-    case RELEVANT_HEADER_NAME:  ;
-// char aux[400] = {0};
-//     sprintf(aux, "Status: %s __Char:%c\n", hstat[current->taskStatus], c);
-//     write(STDOUT, aux, strlen(aux));
-                                if(c == '\r') {
+    case RELEVANT_HEADER_NAME:  if(c == '\r') {
                                   hp->lastTaskStatus = RELEVANT_HEADER_NAME;
                                   current->taskStatus = CR_HEADER;
                                   break;
                                 }
                                 int matchingIndex = matchesFound(hp);
                                 if((c == ':' || isspace(c))) {
-                                  //printf("Termino %c\n", (relevantHeaderNames[matchingIndex][hp->hbufIndex - 1] != 0) + '0');
                                   if(!anyFinishedMatch(hp)) {
                                     current->taskStatus = IRRELEVANT_HEADER;
                                     hp->potentialRelevantHeader[matchingIndex] = FALSE;
                                   }
                                   else {
                                     if(matchingIndex == 0) {
-                                      //printf("Matching index 0 y CONTENT_TYPE\n");
                                       current->taskStatus = CONTENT_TYPE_BODY;
                                       hp->ctp->contentTypeStatus = MIME;
                                     }
                                     else {
-                                      //printf("Matching index 1 y HEADER_BODY\n");
                                       current->taskStatus = HEADER_BODY;
                                     }
                                     hp->relevantHeaders[matchingIndex] = initializeHeader();
@@ -473,28 +393,22 @@ static void parseHeader(Level current, char c) {
                                   current->taskStatus = IRRELEVANT_HEADER;
                                 addCharToHeaderBuffer(hp, c);
                                 break;
-    case IRRELEVANT_HEADER:     //printf("Status: %s __Char:%c\n", hstat[current->taskStatus], c);
-                                addCharToHeaderBuffer(hp, c);
+    case IRRELEVANT_HEADER:     addCharToHeaderBuffer(hp, c);
                                 hp->lastTaskStatus = IRRELEVANT_HEADER;
                                 if(c == '\r') {
                                   current->taskStatus = CR_HEADER;
                                   break;
                                 }
                                 break;
-    case HEADER_BODY:           //addCharToHeaderBody(hp, c); // busco el unico que tiene 1 en el char * potential
-                                //printf("Status: %s __Char:%c\n", hstat[current->taskStatus], c);
-                                hp->lastTaskStatus = HEADER_BODY;
+    case HEADER_BODY:           hp->lastTaskStatus = HEADER_BODY;
                                 int mtch = matchesFound(hp);
                                 addCharToHeaderBody(hp, mtch, c);
                                 if(c == '\r') {
-                                  //addCharToHeaderBody(hp, mtch, '\r');
-                                  //addCharToHeaderBody(hp, mtch, '\n');
                                   current->taskStatus = CR_HEADER;
                                   break;
                                 }
                                 break;
-    case CONTENT_TYPE_BODY:     //printf("Status: %s __Char:%c\n", hstat[current->taskStatus], c);
-                                parseHeaderParams(current, c);
+    case CONTENT_TYPE_BODY:     parseHeaderParams(current, c);
                                 hp->lastTaskStatus = CONTENT_TYPE_BODY;
                                 break;
   }
@@ -516,16 +430,12 @@ static bool anyFinishedMatch(HeaderParser hp) {
 
 static void parseHeaderParams(Level current, char c) {
   HeaderParser hp = current->headerParser;
-// char aux[400] = {0};
-// sprintf(aux,"Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], c);
-// write(STDOUT, aux, strlen(aux));
   switch(hp->ctp->contentTypeStatus) {
     case CR_MIME:                 if(c == '\n') {
                                     hp->ctp->contentTypeStatus = NEW_LINE_CONTENT_TYPE;
                                   }
                                   break;
-    case MIME:                    ;//printf("Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], (c == '\r') ? '+' : c);
-    // write(STDOUT, "antes len ", strlen("antes len "));
+    case MIME:                    ;
                                   int len = hp->relevantHeaders[CONTENT_TYPE]->bodyLength - hp->ctp->wspAndNewLines;
                                   if((c == '\r' || c == ';')) {
                                     hp->ctp->wspAndNewLines += 2;
@@ -537,25 +447,15 @@ static void parseHeaderParams(Level current, char c) {
                                       currentStatus = HEADER_BODY;
                                     }
                                     else if(isComposite(hp->ctp->potentialMultipart, len, MULTIPART)) {
-                                      //printf("ES MULTIPART\n");
                                       current->isMultipart = TRUE;
                                       hp->ctp->contentTypeStatus = SEPARATOR;
                                     }
                                     else if(isComposite(hp->ctp->potentialRfc822, len, RFC822)) {
-                                      //printf("Me dio true, es MESSAGE/RFC822\n");
                                       hp->isRfc822Mime = TRUE;
                                     }
-                                    /*if(c == '\r') {
-                                      addCharToHeaderBody(hp, CONTENT_TYPE, '\r');
-                                      //addCharToHeaderBody(hp, CONTENT_TYPE, '\n');
-                                      nextStatus = CR_HEADER;
-                                    }*/
                                     if(c == '\r')
                                       nextStatus = CR_HEADER;
                                     addCharToHeaderBody(hp, CONTENT_TYPE, c);
-                              //char aux[4000] = {0};
-                              //sprintf(aux, "me estoy yendo, isMultipart: %d, ismessage: %d, censurable: %d\n", current->isMultipart, hp->isRfc822Mime, current->mustBeCensored);
-                              //write(STDOUT, aux, strlen(aux));
                                     current->taskStatus = nextStatus;
                                     hp->lastTaskStatus = currentStatus;
         
@@ -576,13 +476,8 @@ static void parseHeaderParams(Level current, char c) {
                                     hp->ctp->contentTypeStatus = SEPARATOR;
                                     break;
                                   }
-                    // write(STDOUT, "antes matching ", strlen("antes matching "));
-                    // char auxi[400] = {0};
-                    // sprintf(auxi, "ctp: %p , potentialRelevantMime: %p ", hp->ctp, hp->ctp->potentialRelevantMime);
-                    // write(STDOUT, auxi, strlen(auxi));
                                   int matching = checkIsRelevantMime(hp->ctp->potentialRelevantMime, 
                                     len, c);
-                    // write(STDOUT, "dsps matching ", strlen("dsps matching "));
                                   hp->ctp->potentialMultipart = checkCompositeMime(len, c, MULTIPART, 
                                     hp->ctp->potentialMultipart);
                                   hp->ctp->potentialRfc822 = checkCompositeMime(len, c, RFC822,
@@ -594,8 +489,7 @@ static void parseHeaderParams(Level current, char c) {
                                     return;
                                   }
                                   break;
-    case SEPARATOR:               //printf("Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], c);
-                                  if(c == '\r') {
+    case SEPARATOR:               if(c == '\r') {
                                     addCharToHeaderBody(hp, CONTENT_TYPE, '\r');
                                     hp->ctp->previousContentTypeStatus = SEPARATOR;
                                     current->taskStatus = CR_HEADER;
@@ -604,7 +498,6 @@ static void parseHeaderParams(Level current, char c) {
                                   if(c == '(') {
                                     hp->ctp->previousContentTypeStatus = SEPARATOR;
                                     hp->ctp->contentTypeStatus = COMMENT;
-                                    //hp->ctp->wspAndNewLines++;
                                     break;
                                   }
                                   if(isspace(c))
@@ -620,21 +513,14 @@ static void parseHeaderParams(Level current, char c) {
                                     break;
                                   }
                                   break;
-    case COMMENT:                 //printf("Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], c);
-                                  if(c == ')') {
-                                    //hp->ctp->wspAndNewLines++;
+    case COMMENT:                 if(c == ')') {
                                     hp->ctp->contentTypeStatus = hp->ctp->previousContentTypeStatus;
                                     break;
                                   }
-                                  //hp->ctp->wspAndNewLines++;
                                   break;
-    case BOUNDARY:                //printf("Status: %s __Char:%c\n", cs[hp->ctp->contentTypeStatus], c);
-                                  if(c == '\r' && (hp->ctp->doubleQuoteCount == 0 
+    case BOUNDARY:                if(c == '\r' && (hp->ctp->doubleQuoteCount == 0 
                                     || hp->ctp->doubleQuoteCount == 2)) {
                                     addCharToHeaderBody(hp, CONTENT_TYPE, '\r');
-                     //           write(STDOUT, "BOUNDARY: ", strlen("BOUNDARY: "));
-                    //write(STDOUT, hp->nextBoundary->bnd, hp->nextBoundary->length);
-                      //  write(STDOUT, "FIN\r\n", 5);
                                     current->taskStatus = CR_HEADER;
                                     hp->lastTaskStatus = HEADER_BODY;
                                     break;
@@ -642,7 +528,6 @@ static void parseHeaderParams(Level current, char c) {
                                   if(c == '(') {
                                     hp->ctp->previousContentTypeStatus = SEPARATOR;
                                     hp->ctp->contentTypeStatus = COMMENT;
-                                    //hp->ctp->wspAndNewLines++;
                                     break;
                                   }
                                   else if(c == '\r' || c == '\n') { // boundary="simpl
@@ -651,17 +536,13 @@ static void parseHeaderParams(Level current, char c) {
                                   if(c == '\"') {
                                     hp->ctp->doubleQuoteCount++;
                                     if(hp->ctp->doubleQuoteCount == 2 && !current->mustBeCensored) {
-                                      //finishBoundary();
                                     }
                                     addCharToHeaderBody(hp, CONTENT_TYPE, c);
                                     break;
                                   }
                                   if(hp->ctp->doubleQuoteCount != 2) {
-                          //write(STDOUT, "Antes de addCharBoundary", strlen("Antes de addCharBoundary"));
                                     addCharToBoundary(hp, c);
-                          //write(STDOUT, "Antes de addCharHeader", strlen("Antes de addCharHeader"));
                                     addCharToHeaderBody(hp, CONTENT_TYPE, c);
-                          //write(STDOUT, "Escribi doble", strlen("Escribi doble"));
                                   }
                                   break;
   }
@@ -675,20 +556,14 @@ static void addCharToHeaderBuffer(HeaderParser hp, char c) {
 
 static void addCharToHeaderBody(HeaderParser hp, int position, char c) {
   Header h = hp->relevantHeaders[position];
-//char aux[400] = {0};
-//sprintf(aux, "BodyLength: %d; char: %c", h->bodyLength, c);
-//write(STDOUT, aux, strlen(aux));
   if(position % HBUF_BLOCK == 0)
     h->body = realloc(h->body, h->bodyLength + HBUF_BLOCK);
   h->body[h->bodyLength++] = c;
 }
 
 static void addCharToBoundary(HeaderParser hp, char c) {
-//char aux[400] = {0};
-//sprintf(aux, "BoundaryLength: %d (%p); char: %c", hp->nextBoundary->length, hp->nextBoundary, c);
-//write(STDOUT, aux, strlen(aux));
   Boundary b = hp->nextBoundary;
-  if(b->length % HBUF_BLOCK == 0) // valgrind
+  if(b->length % HBUF_BLOCK == 0)
     b->bnd = realloc(b->bnd, b->length + HBUF_BLOCK);
   b->bnd[b->length++] = c;
 }
@@ -698,11 +573,9 @@ static bool checkIsRelevantHeader(Level current, char c) {
   bool ret = FALSE;
   HeaderParser hp = current->headerParser;
   for(index = 0; index < RELEVANT_HEADERS; index++) {
-    //printf("potentialRelevantHeader antes: %d\n", hp->potentialRelevantHeader[index]);
     if(hp->potentialRelevantHeader[index] == TRUE) {
       hp->potentialRelevantHeader[index] = cmp(relevantHeaderNames[index], hp->hbufIndex, c);
     }
-    //printf("potentialRelevantHeader dsps: %d\n", hp->potentialRelevantHeader[index]);
     if(hp->potentialRelevantHeader[index] == TRUE)
       ret = TRUE;
   }
@@ -712,20 +585,10 @@ static bool checkIsRelevantHeader(Level current, char c) {
 static bool checkIsRelevantMime(char * potentialRelevantMime, int position, char c) {
   int index;
   bool ret = FALSE;
-//char auxi[400];
-//sprintf(auxi, "El for lo del medio queda %d", relevantMimes - COMPOSITE_MIMES);
-//write(STDOUT, auxi, strlen(auxi));
   for(index = 0; index < relevantMimes - COMPOSITE_MIMES; index++) {
-//   char aux[400] = {0};
-//sprintf(aux, "potentialRelevantMIME antes: %d, position: %d, char: %c\n",potentialRelevantMime[index], position, c);
-//write(STDOUT, aux, strlen(aux));
-//printf("potentialRelevantMIME antes: %d, position: %d, char: %c\n",potentialRelevantMime[index], position, c);
-//sprintf(aux, "En isRelevantMime con potentialRelevantMime[index] %c; %s %d vs %d, %c vs %c\n", potentialRelevantMime[index] + '0', censoredMimes[index], position, strlen(censoredMimes[index]), c, censoredMimes[index][position]);
-//write(STDOUT, aux, strlen(aux));
     if(potentialRelevantMime[index] == TRUE) {
       potentialRelevantMime[index] = cmpMime(censoredMimes[index], position, c);
     }
-//printf("potentialRelevantMIME Despues: %d, position: %d, char: %c\n",potentialRelevantMime[index], position, c);
     if(potentialRelevantMime[index] == TRUE)
       ret = TRUE;
   }
@@ -741,24 +604,18 @@ static bool checkCompositeMime(int position, char c, int compositeMime, char pot
 
 static bool cmpMime(const char * str, int position, char c) {
   int len = strlen(str);
-///char aux[400] = {0};
-//sprintf(aux, "En cmpMime %s %d vs %d, %c vs %c\n", str, position, strlen(str), c, str[position]);
-//write(STDOUT, aux, strlen(aux));
   if(position >= len - 1 && str[len - 1] == '*') {
-    //printf("Me dio *************************** %c\n", c);
     return TRUE;
   }
   if(position > len) {
     return FALSE;
   }
-  //printf("Voy a retornar %d\n", (tolower(c) == tolower(str[position])) ? 1 : 0);
   return tolower(c) == tolower(str[position]);
 }
 
 static bool anyCensoredMatches(const char * potentialRelevantMime, int position) {
   int index;
   for(index = 0; index < relevantMimes - COMPOSITE_MIMES; index++) {
-    //printf("anyCensoredMatches %s, position: %d\n", censoredMimes[index], position);
     if(potentialRelevantMime[index] == TRUE && cmpMime(censoredMimes[index], position, '\0'))
       return TRUE;
   }
@@ -766,12 +623,10 @@ static bool anyCensoredMatches(const char * potentialRelevantMime, int position)
 }
 
 static bool isComposite(char potentiallyComposite, int position, int mime) {
-  //printf("isComposite, potentialMultipart: %d, position: %d, MIME: %d\n", potentialMultipart, position, mime);
   return potentiallyComposite && cmpMime(compositeMimes[mime], position, '\0');
 }
 
 static bool cmp(const char * str, int position, char c) {
-  //printf("cmp, %s %d %c vs %c\n", str, position, c, str[position]);
   if(position > strlen(str)) // always compare to null-terminated str
     return FALSE;
   return tolower(c) == tolower(str[position]);
@@ -792,29 +647,24 @@ static void injectReplacementHeaderAndBody() {
   writeAndCheck(STDOUT, "\r\n", 2);
 }
 
-// NOTE: The CRLF preceding the encapsulation line is considered part of the boundary 
-// so that it is possible to have a part that does not end with a CRLF (line break). 
-// Body parts that must be considered to end with line breaks, therefore, should have
-// two CRLFs preceding the encapsulation line, the first of which is part of the 
-// preceding body part, and the second of which is part of the encapsulation boundary.
+/* RFC:
+ * NOTE: The CRLF preceding the encapsulation line is considered part of the boundary 
+ * so that it is possible to have a part that does not end with a CRLF (line break). 
+ * Body parts that must be considered to end with line breaks, therefore, should have
+ * two CRLFs preceding the encapsulation line, the first of which is part of the 
+ * preceding body part, and the second of which is part of the encapsulation boundary.
+ */
 static void parseBody(Level current, char c, Boundary boundary) {
   if(boundary == NULL) {
     if(buffer->i == buffer->bytesRead - 1
       || (current->mustBeCensored && buffer->i == buffer->bytesRead - 1)) {
       current->task = DONE_FINAL_BODY;
-      //printf("Llegue a parseBody con este char %c y el index es: %d\n", c, buffer->bytesRead);
-    //char aux[400] = {0};
-    //sprintf(aux, "Buffer->doneReading: %d\n", buffer->doneReading);
-    //write(STDOUT, aux, strlen(aux));
       current->taskStatus = WRITING_NO_CHECK;
       consumeRemainingBytes(current);
       return;
     }
     return;
   }
-  //char aux[4000] = {0};
-  //sprintf(aux, "%s; Char: %c\n", bodyStatusNames[current->taskStatus], c);
-  //write(STDOUT, aux, strlen(aux));
   switch(current->taskStatus) {
     case NEW_LINE_BODY:               if(c == '-') {
                                         current->bodyParser->hyphenCount++;
@@ -850,7 +700,6 @@ static void parseBody(Level current, char c, Boundary boundary) {
                                         current->taskStatus = CR_BODY;
                                         break;
                                       }
-                                      //printf("boundary[i]: %c\n", boundary->bnd[current->bodyParser->boundaryIndex]);
                                       if(c == boundary->bnd[current->bodyParser->boundaryIndex]) {
                                         current->bodyParser->boundaryIndex++;
                                         if(current->bodyParser->boundaryIndex == boundary->length) {
@@ -869,32 +718,25 @@ static void parseBody(Level current, char c, Boundary boundary) {
                                       break;
     case BOUNDARY_POP_CHECK:          if(c == '\r') {
                                         current->task = DONE_PARSING_BODY;
-                                        //return;
                                       }
                                       if(c == '-') {
                                         current->bodyParser->hyphenCount++;
                                         if(current->bodyParser->hyphenCount < HYPHENS)
                                           break;
-                                      //  printf("HyphenCount: %d\n", current->bodyParser->hyphenCount);
                                       }
                                       if(current->bodyParser->hyphenCount == HYPHENS) {
-                                        //printf("POPIE %s\n", boundary->bnd);
-                                //write(STDOUT, "ENTRE PARA POPIAR", strlen("entre para popiar"));
                                         current->bodyParser->isFinalPart = TRUE;
                                         Boundary popped = pop(boundaries);
                                         if(current->mustBeCensored)
                                           writeBoundary(current->bodyParser->isFinalPart, boundary);
                                         free(popped->bnd);
                                         free(popped);
-      //VERRRRRRRRRRRRRRRRRRRcurrent->task = PARSING_BODY;
                                         current->task = PARSING_BODY;
                                         current->taskStatus = NEW_LINE_BODY;
                                         resetBodyParserSameStartingPoint(current->bodyParser);
                                         break;
                                       }
                                       if(current->mustBeCensored) {
-                                        //printf("VOY A ESCRIBIR EL BOUNDARYYYYYYYYYYYYYYYYYYYYY\n");
-                                 //write(STDOUT, "NO POPEO", strlen("NO POPEO"));
                                         writeBoundary(current->bodyParser->isFinalPart, peek(boundaries));
                                       }
                                       break;

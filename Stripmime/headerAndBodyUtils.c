@@ -15,8 +15,7 @@ HeaderParser initializeHeaderParser(int relevantMimes) {
   return hp;
 }
 
-void freeHeaderParser(HeaderParser hp) {
-//write(STDOUT, "FREEEEING ALL\n", strlen("FREEEEING ALL\n"));  
+void freeHeaderParser(HeaderParser hp) {  
   int index;
   for(index = 0; index < RELEVANT_HEADERS; index++) {
     if(hp->relevantHeaders[index] != NULL) {
@@ -35,7 +34,6 @@ void freeHeaderParser(HeaderParser hp) {
 }
 
 void freeHeaderContents(Header header) {
-//write(STDOUT, "FREEEEING\n", strlen("FREEEEING\n"));
   if(header->name != NULL)
     free(header->name);
   if(header->body != NULL)
@@ -60,10 +58,6 @@ void resetHeaderParser(HeaderParser hp, int relevantMimes) {
         freeHeaderContents(hp->relevantHeaders[index]);
         hp->relevantHeaders[index]->name = NULL;
         hp->relevantHeaders[index]->body = NULL;
-        //free(hp->relevantHeaders[index]);
-        //hp->relevantHeaders[index] = NULL;
- //write(STDOUT, "\r\njajajajajaja\r\n", strlen("\r\njajajajajaja\r\n"));
-//printHeader(hp->relevantHeaders[index]);
       }
     }
   }
@@ -73,10 +67,10 @@ void resetHeaderParser(HeaderParser hp, int relevantMimes) {
   hp->isRfc822Mime = 0;
   if(hp->hbuf == NULL)
     hp->hbuf = malloc(HBUF_BLOCK);
-  hp->hbufIndex = 0; // valgrind
+  hp->hbufIndex = 0;
   hp->nextBoundary = malloc(sizeof(Boundary));
   hp->nextBoundary->bnd = malloc(HBUF_BLOCK);
-  hp->nextBoundary->length = 0; // valgrind invalid read size 4
+  hp->nextBoundary->length = 0; // valgrind invalid read size 4 (?)
   if(hp->ctp == NULL) {
     hp->ctp = malloc(sizeof(ContentTypeParserCDT));
     hp->ctp->potentialRelevantMime = NULL;
